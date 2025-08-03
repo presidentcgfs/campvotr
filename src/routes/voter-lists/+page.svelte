@@ -18,18 +18,22 @@
 		user_id: string | null;
 		added_at: string;
 	}
-
 	let voterLists: VoterList[] = [];
-	let loading = true;
-	let error = '';
-	let showCreateForm = false;
+	$: voterLists = [];
+	$: loading = true;
+	$: error = '';
+	$: showCreateForm = false;
 	let selectedList: VoterList | null = null;
+	$: selectedList = null;
 	let selectedListVoters: Voter[] = [];
-
+	$: selectedListVoters = [];
+	$: {
+		console.log({ selectedList });
+	}
 	// Form data
-	let newListName = '';
-	let newListDescription = '';
-	let newListVoterEmails = '';
+	$: newListName = '';
+	$: newListDescription = '';
+	$: newListVoterEmails = '';
 
 	onMount(async () => {
 		await fetchVoterLists();
@@ -98,7 +102,9 @@
 
 			const data = await response.json();
 			selectedListVoters = data.voterList.voters;
+			console.log({ selectedListVoters });
 		} catch (err) {
+			console.error(err);
 			error = err instanceof Error ? err.message : 'An error occurred';
 		}
 	}
@@ -176,7 +182,7 @@
 	{:else}
 		<div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 			{#each voterLists as list}
-				<div class="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+				<div class="bg-white rounded-lg shadow-md p-4 border border-gray-200">
 					<h3 class="text-xl font-semibold text-gray-900 mb-2">{list.name}</h3>
 					{#if list.description}
 						<div class="text-gray-600 mb-4">
@@ -279,7 +285,9 @@
 
 <!-- Voter List Details Modal -->
 {#if selectedList}
-	<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+	<div
+		class="selected-list fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+	>
 		<div class="bg-white rounded-lg max-w-2xl w-full p-6 max-h-[80vh] overflow-y-auto">
 			<div class="flex justify-between items-center mb-4">
 				<h2 class="text-2xl font-bold text-gray-900">{selectedList.name}</h2>
