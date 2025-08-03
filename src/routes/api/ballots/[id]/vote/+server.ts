@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { BallotService, VoteService } from '$lib/db/queries';
-import { withAuth, validateRequest, handleError } from '$lib/server/middleware';
+import { withAuth, handleError } from '$lib/server/middleware';
 import { castVoteSchema, idSchema } from '$lib/validation';
 
 export const POST: RequestHandler = async (event) => {

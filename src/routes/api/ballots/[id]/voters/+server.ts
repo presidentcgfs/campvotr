@@ -1,7 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/db';
 import { ballots, ballotVoters, voters } from '$lib/db/schema';
-import { authenticateUser } from '$lib/server/auth';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import type { RequestHandler } from './$types';
