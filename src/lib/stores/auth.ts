@@ -15,7 +15,7 @@ if (browser) {
 		loading.set(false);
 	});
 
-	// Listen for auth changes
+	// // Listen for auth changes
 	AuthService.onAuthStateChange((currentUser) => {
 		user.set(currentUser);
 		// Get updated session when user changes

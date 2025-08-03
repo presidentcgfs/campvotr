@@ -8,6 +8,11 @@ export interface AuthUser {
 }
 
 export class AuthService {
+	static async onAuthStateChange(callback: (user: User | null) => void) {
+		return supabase.auth.onAuthStateChange((event, session) => {
+			callback(session?.user ?? null);
+		});
+	}
 	static async signUp(email: string, password: string) {
 		const { data, error } = await supabase.auth.signUp({
 			email,
