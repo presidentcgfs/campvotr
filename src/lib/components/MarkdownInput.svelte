@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { Carta, MarkdownEditor } from 'carta-md';
-	import 'carta-md/default.css'; /* Default theme */
 	import DOMPurify from 'isomorphic-dompurify';
 	import './carta-github.css';
+	import 'carta-md/default.css'; /* Default theme */
 
 	let { value = $bindable() } = $props();
 

@@ -1,14 +1,10 @@
 {
 	"framework": "sveltekit",
-	"buildCommand": "npm run build",
-	"devCommand": "npm run dev",
-	"installCommand": "npm install",
+	"buildCommand": "pnpm run build",
+	"devCommand": "pnpm run dev",
+	"installCommand": "pnpm install",
 	"outputDirectory": "build",
-	"env": {
-		"DATABASE_URL": "@database_url",
-		"SUPABASE_URL": "@supabase_url",
-		"SUPABASE_ANON_KEY": "@supabase_anon_key"
-	},
+
 	"functions": {
 		"src/routes/api/**/*.ts": {
 			"maxDuration": 30

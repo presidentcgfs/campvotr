@@ -26,36 +26,44 @@ export const GET: RequestHandler = async (event) => {
 		return new Response('Ballot not found or access denied', { status: 404 });
 	}
 
+	const encoder = new TextEncoder();
+	let interval: ReturnType<typeof setInterval>;
+	let closed = false;
 	const stream = new ReadableStream({
 		start(controller) {
-			// Send initial data
 			const sendUpdate = async () => {
 				try {
+					if (closed) return;
 					const voteCounts = await BallotService.getVoteCounts(ballotId);
 					const userVote = await BallotService.getUserVote(ballotId, user.id);
-
 					const data = JSON.stringify({
 						vote_counts: voteCounts,
 						user_vote: userVote,
 						timestamp: new Date().toISOString()
 					});
-
-					controller.enqueue(`data: ${data}\n\n`);
+					controller.enqueue(encoder.encode(`data: ${data}\n\n`));
 				} catch (error) {
-					console.error('Error sending SSE update:', error);
+					if (!closed) {
+						console.error('Error sending SSE update:', error);
+					}
 				}
 			};
-
 			// Send initial update
 			sendUpdate();
-
 			// Set up periodic updates (every 5 seconds)
-			const interval = setInterval(sendUpdate, 5000);
-
-			// Clean up on close
-			return () => {
+			interval = setInterval(sendUpdate, 5000);
+			// Clean up on client abort
+			event.request.signal.addEventListener('abort', () => {
+				closed = true;
 				clearInterval(interval);
-			};
+				try {
+					controller.close();
+				} catch {}
+			});
+		},
+		cancel() {
+			closed = true;
+			clearInterval(interval);
 		}
 	});
 
