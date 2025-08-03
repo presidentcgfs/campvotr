@@ -1,5 +1,5 @@
 <script>
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 </script>
 
 <div class="container">
@@ -9,7 +9,7 @@
 			A transparent, democratic voting platform for making collective decisions
 		</p>
 
-		{#if user}
+		{#if page.data.user}
 			<div class="hero-actions">
 				<a href="/dashboard" class="btn">Go to Dashboard</a>
 				<a href="/ballots" class="btn btn-secondary">View Ballots</a>

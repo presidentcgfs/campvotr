@@ -1,13 +1,11 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-
-	let user = $page.data.user;
-	$: ({ user } = $page.data);
 
 	async function handleSignOut() {
 		try {
-			await fetch('/auth', { method: 'POST' });
+			await fetch('/auth', { method: 'POST', body: new FormData() });
+			page.data.user = null;
 			goto('/auth');
 		} catch (error) {
 			console.error('Sign out error:', error);
@@ -20,28 +18,24 @@
 		<a href="/" class="nav-brand">CampVotr</a>
 
 		<div class="nav-links">
-			{#if user}
-				<a href="/dashboard" class="nav-link" class:active={$page.url.pathname === '/dashboard'}>
+			{#if page.data.user}
+				<a href="/dashboard" class="nav-link" class:active={page.url.pathname === '/dashboard'}>
 					Dashboard
 				</a>
-				<a
-					href="/ballots"
-					class="nav-link"
-					class:active={$page.url.pathname.startsWith('/ballots')}
-				>
+				<a href="/ballots" class="nav-link" class:active={page.url.pathname.startsWith('/ballots')}>
 					Ballots
 				</a>
 				<a
 					href="/voter-lists"
 					class="nav-link"
-					class:active={$page.url.pathname.startsWith('/voter-lists')}
+					class:active={page.url.pathname.startsWith('/voter-lists')}
 				>
 					Voter Lists
 				</a>
 				<a
 					href="/notifications"
 					class="nav-link"
-					class:active={$page.url.pathname === '/notifications'}
+					class:active={page.url.pathname === '/notifications'}
 				>
 					Notifications
 				</a>
