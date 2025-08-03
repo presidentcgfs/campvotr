@@ -2,16 +2,32 @@
 	import { onMount } from 'svelte';
 	import BallotCard from '$lib/components/BallotCard.svelte';
 	import type { BallotWithVotes, Notification } from '$lib/types';
+	import { page } from '$app/state';
+	import type { User } from '@supabase/supabase-js';
+	import { AuthService } from '$lib/auth';
+
+	$: user = page.data.user;
+
+	AuthService.onAuthStateChange((change) => {
+		user = change ?? null;
+		if (user) {
+			loadIfAuth(user);
+		}
+	});
 
 	let recentBallots: BallotWithVotes[] = [];
 	let notifications: Notification[] = [];
 	let loading = true;
-	let error = '';
-
-	onMount(async () => {
-		await Promise.all([loadRecentBallots(), loadNotifications()]);
-		loading = false;
-	});
+	let loaded = false;
+	async function loadIfAuth(user: User | null) {
+		console.log('loadIfAuth', user, loaded);
+		if (user && !loaded) {
+			loading = true;
+			await Promise.all([loadRecentBallots(), loadNotifications()]);
+			loaded = true;
+			loading = false;
+		}
+	}
 
 	async function loadRecentBallots() {
 		try {
@@ -55,21 +71,16 @@
 			console.error('Failed to mark notification as read:', err);
 		}
 	}
-
+	onMount(() => loadIfAuth(user));
+	$: loadIfAuth(user);
 	$: unreadNotifications = notifications.filter((n) => !n.read_at);
 	$: openBallots = recentBallots.filter((d) => d.status === 'open');
-	import { page } from '$app/stores';
-	let currentUserEmail = '';
-	let currentUserId = '';
-	$: ({ user: { email: currentUserEmail = '', id: currentUserId = '' } = {} as any } =
-		$page.data as any);
-	$: myBallots = recentBallots.filter((d) => d.creator_id === currentUserId);
 </script>
 
 <div class="container">
 	<div class="dashboard-header">
 		<h1>Dashboard</h1>
-		<p>Welcome back, {currentUserEmail}!</p>
+		<p>Welcome back, {user?.email}!</p>
 	</div>
 
 	{#if loading}
@@ -85,7 +96,7 @@
 						<div class="stat-label">Open Ballots</div>
 					</div>
 					<div class="stat-card">
-						<div class="stat-number">{myBallots.length}</div>
+						<div class="stat-number">{recentBallots.length}</div>
 						<div class="stat-label">My Ballots</div>
 					</div>
 					<div class="stat-card">

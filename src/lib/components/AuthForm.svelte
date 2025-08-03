@@ -1,9 +1,11 @@
 <script lang="ts">
-	import { AuthService } from '$lib/auth';
 	import { goto } from '$app/navigation';
+	import { AuthService } from '$lib/auth';
 
 	export let mode: 'signin' | 'signup' = 'signin';
-
+	export let onLogin: () => void = () => {
+		goto('/dashboard');
+	};
 	let email = '';
 	let password = '';
 	let loading = false;
@@ -26,7 +28,7 @@
 			}
 
 			// Redirect to dashboard after successful auth
-			goto('/dashboard');
+			onLogin();
 		} catch (err: any) {
 			error = err.message || 'An error occurred';
 		} finally {
@@ -40,6 +42,7 @@
 
 		try {
 			await AuthService.signInWithGoogle();
+			onLogin();
 			// The redirect will be handled by Supabase
 		} catch (err: any) {
 			error = err.message || 'Google sign-in failed';

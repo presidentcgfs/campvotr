@@ -1,6 +1,12 @@
 <script>
 	import '../app.css';
 	import Navigation from '$lib/components/Navigation.svelte';
+	import { AuthService } from '$lib/auth';
+	import { browser } from '$app/environment';
+	if (browser)
+		AuthService.onAuthStateChange((ess) => {
+			console.log('auth change', ess);
+		});
 </script>
 
 <Navigation />
@@ -92,12 +98,24 @@
 		text-align: center;
 	}
 
-	:global(.mb-1) { margin-bottom: 0.5rem; }
-	:global(.mb-2) { margin-bottom: 1rem; }
-	:global(.mb-3) { margin-bottom: 1.5rem; }
-	:global(.mt-1) { margin-top: 0.5rem; }
-	:global(.mt-2) { margin-top: 1rem; }
-	:global(.mt-3) { margin-top: 1.5rem; }
+	:global(.mb-1) {
+		margin-bottom: 0.5rem;
+	}
+	:global(.mb-2) {
+		margin-bottom: 1rem;
+	}
+	:global(.mb-3) {
+		margin-bottom: 1.5rem;
+	}
+	:global(.mt-1) {
+		margin-top: 0.5rem;
+	}
+	:global(.mt-2) {
+		margin-top: 1rem;
+	}
+	:global(.mt-3) {
+		margin-top: 1.5rem;
+	}
 
 	:global(.grid) {
 		display: grid;

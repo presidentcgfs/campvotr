@@ -1,11 +1,18 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-
+	import { AuthService } from '$lib/auth';
+	import { browser } from '$app/environment';
+	let user = $state(page.data.user);
+	if (browser) {
+		AuthService.onAuthStateChange((currentUser) => {
+			user = currentUser ?? null;
+		});
+	}
 	async function handleSignOut() {
 		try {
 			await fetch('/auth', { method: 'POST', body: new FormData() });
-			page.data.user = null;
+			user = null;
 			goto('/auth');
 		} catch (error) {
 			console.error('Sign out error:', error);
@@ -18,7 +25,7 @@
 		<a href="/" class="nav-brand">CampVotr</a>
 
 		<div class="nav-links">
-			{#if page.data.user}
+			{#if user}
 				<a href="/dashboard" class="nav-link" class:active={page.url.pathname === '/dashboard'}>
 					Dashboard
 				</a>
