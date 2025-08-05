@@ -6,14 +6,14 @@ export const GET: RequestHandler = async () => {
 	try {
 		// Test database connection
 		await db.execute('SELECT 1');
-		
+
 		return json({
 			status: 'healthy',
 			timestamp: new Date().toISOString(),
 			services: {
 				database: 'connected',
-				api: 'operational',
-			},
+				api: 'operational'
+			}
 		});
 	} catch (error) {
 		return json(
@@ -22,9 +22,9 @@ export const GET: RequestHandler = async () => {
 				timestamp: new Date().toISOString(),
 				services: {
 					database: 'disconnected',
-					api: 'operational',
+					api: 'operational'
 				},
-				error: 'Database connection failed',
+				error: 'Database connection failed'
 			},
 			{ status: 503 }
 		);

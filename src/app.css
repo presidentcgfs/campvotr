@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* CampVotr Global Styles */
 
 /* Reset and base styles */

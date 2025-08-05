@@ -142,6 +142,20 @@ npm run db:migrate
 3. Configure authentication providers as needed
 4. Copy your project URL and keys to environment variables
 
+### Chron setup
+
+We expose an endpoint that takes a header 'x-cron-secret' and a shared chron secret (CRON_SECRET). To make reminders work a cron job can be set up to call this endpoint every 15 minutes or so. If you are using supabase enable
+pg_net and pg_cron and setup a job to call that endpoint -- something like.
+
+```sql
+select
+  net.http_post(
+      url:='https://<YOUR_SERVER>/api/cron/ballots/tick',
+      headers:=jsonb_build_object('x-cron-secret', '<CRON_SECRET_HERE>'),
+      timeout_milliseconds:=1000
+  );
+```
+
 ## Development
 
 ### Available Scripts

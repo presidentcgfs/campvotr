@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { RESEND_API_KEY } from '$env/static/private';
 import { PUBLIC_APP_URL } from '$env/static/public';
+import { fileURLToPath } from 'url';
 
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
@@ -29,8 +30,32 @@ export interface ballotNotificationData {
 	thresholdPercentage?: number;
 }
 
+type ReminderType = 'open' | 'close';
+export interface BallotReminderEmailData {
+	type: ReminderType;
+	ballotId: string;
+	ballotTitle: string;
+	voterEmail: string;
+	voterName?: string;
+	when: Date; // opensAt or closesAt
+	minutes: number;
+}
+export interface BallotOpenedEmailData {
+	ballotId: string;
+	ballotTitle: string;
+	voterEmail: string;
+	voterName?: string;
+	closesAt: Date;
+}
+export interface BallotClosedEmailData {
+	ballotId: string;
+	ballotTitle: string;
+	voterEmail: string;
+	voterName?: string;
+}
+
 export class EmailService {
-	private static fromEmail = 'CampVotr <noreply@campvotr.com>';
+	private static fromEmail = 'Vote <noreply@vote.campbellsoftball.com>';
 
 	private static getThresholdLabel(threshold: string, customPercentage?: number): string {
 		switch (threshold) {
@@ -159,14 +184,14 @@ export class EmailService {
 					<div class="content">
 						<p>${greeting},</p>
 						<p>You have been invited to vote on the following ballot:</p>
-						
+
 						<h2>${data.ballotTitle}</h2>
 						<p>${data.ballotDescription}</p>
 
 						<p><strong>Voting Period:</strong> ${votingPeriod}</p>
 						<p><strong>Voting Threshold:</strong> ${thresholdLabel}</p>
 						<p><em>This ballot requires ${thresholdLabel.toLowerCase()} of eligible voters to vote "yes" in order to pass.</em></p>
-						
+
 						${
 							!data.isRegisteredUser
 								? `
@@ -176,11 +201,11 @@ export class EmailService {
 						`
 								: ''
 						}
-						
+
 						<p>
 							<a href="${ballotUrl}" class="button">View Ballot & Vote</a>
 						</p>
-						
+
 						${
 							!data.isRegisteredUser
 								? `
@@ -271,14 +296,14 @@ This email was sent by CampVotr. If you believe you received this in error, plea
 					<div class="content">
 						<p>${greeting},</p>
 						<p>A new ballot is now available:</p>
-						
+
 						<h2>${data.ballotTitle}</h2>
 						<p>${data.ballotDescription}</p>
 
 						<p><strong>Voting Period:</strong> ${votingPeriod}</p>
 						<p><strong>Voting Threshold:</strong> ${thresholdLabel}</p>
 						<p><em>This ballot requires ${thresholdLabel.toLowerCase()} of eligible voters to vote "yes" in order to pass.</em></p>
-						
+
 						<p>
 							<a href="${ballotUrl}" class="button">View Ballot & Vote</a>
 						</p>
@@ -301,22 +326,125 @@ This email was sent by CampVotr. If you believe you received this in error, plea
 		const thresholdLabel = this.getThresholdLabel(data.votingThreshold, data.thresholdPercentage);
 
 		return `
-${greeting},
+	${greeting},
 
-A new ballot is now available:
+	A new ballot is now available:
 
-${data.ballotTitle}
-${data.ballotDescription}
+	${data.ballotTitle}
+	${data.ballotDescription}
 
-Voting Period: ${votingPeriod}
-Voting Threshold: ${thresholdLabel}
+	Voting Period: ${votingPeriod}
+	Voting Threshold: ${thresholdLabel}
 
-This ballot requires ${thresholdLabel.toLowerCase()} of eligible voters to vote "yes" in order to pass.
+	This ballot requires ${thresholdLabel.toLowerCase()} of eligible voters to vote "yes" in order to pass.
 
-View Ballot & Vote: ${ballotUrl}
+	View Ballot & Vote: ${ballotUrl}
 
----
-This email was sent by CampVotr. You can manage your notification preferences in your account settings.
-		`.trim();
+	---
+	This email was sent by CampVotr. You can manage your notification preferences in your account settings.
+			`.trim();
 	}
+
+	static async sendBallotReminderEmail(data: BallotReminderEmailData): Promise<boolean> {
+		if (!resend) {
+			console.warn('Email service not configured - RESEND_API_KEY missing');
+			return false;
+		}
+		try {
+			const noun = data.type === 'open' ? 'opens' : 'closes';
+			const subject = `Ballot ${noun} in ${data.minutes} min: ${data.ballotTitle}`;
+			const ballotUrl = `${PUBLIC_APP_URL}/ballots/${data.ballotId}`;
+			const whenStr = data.when.toUTCString();
+			const html = `
+				<!DOCTYPE html>
+				<html><body>
+					<p>${data.voterName ? `Hello ${data.voterName},` : 'Hello,'}</p>
+					<p>Reminder: <strong>${data.ballotTitle}</strong> ${noun} in ${data.minutes} minute$${'{data.minutes === 1 ? "" : "s"}'} (${whenStr} UTC).</p>
+					<p><a href="${ballotUrl}">View ballot</a></p>
+				</body></html>`;
+			const text = `Reminder: ${data.ballotTitle} ${noun} in ${data.minutes} minutes (${whenStr} UTC).\n${ballotUrl}`;
+			const result = await resend.emails.send({
+				from: this.fromEmail,
+				to: data.voterEmail,
+				subject,
+				html,
+				text
+			});
+			return !!result.data;
+		} catch (error) {
+			console.error('Failed to send ballot reminder email:', error);
+			return false;
+		}
+	}
+
+	static async sendBallotOpenedEmail(data: BallotOpenedEmailData): Promise<boolean> {
+		if (!resend) {
+			console.warn('Email service not configured - RESEND_API_KEY missing');
+			return false;
+		}
+		try {
+			const subject = `Voting is now open: ${data.ballotTitle}`;
+			const ballotUrl = `${PUBLIC_APP_URL}/ballots/${data.ballotId}`;
+			const html = `<!DOCTYPE html><html><body>
+				<p>${data.voterName ? `Hello ${data.voterName},` : 'Hello,'}</p>
+				<p>Voting is now open for <strong>${data.ballotTitle}</strong>.</p>
+				<p>Voting closes at ${data.closesAt.toUTCString()} UTC.</p>
+				<p><a href="${ballotUrl}">Cast your vote</a></p>
+			</body></html>`;
+			const text = `Voting is now open for ${data.ballotTitle}. Closes at ${data.closesAt.toUTCString()} UTC.\n${ballotUrl}`;
+			const result = await resend.emails.send({
+				from: this.fromEmail,
+				to: data.voterEmail,
+				subject,
+				html,
+				text
+			});
+			return !!result.data;
+		} catch (error) {
+			console.error('Failed to send ballot opened email:', error);
+			return false;
+		}
+	}
+
+	static async sendBallotClosedEmail(data: BallotClosedEmailData): Promise<boolean> {
+		if (!resend) {
+			console.warn('Email service not configured - RESEND_API_KEY missing');
+			return false;
+		}
+		try {
+			const subject = `Voting is now closed: ${data.ballotTitle}`;
+			const ballotUrl = `${PUBLIC_APP_URL}/ballots/${data.ballotId}`;
+			const html = `<!DOCTYPE html><html><body>
+				<p>${data.voterName ? `Hello ${data.voterName},` : 'Hello,'}</p>
+				<p>Voting is now closed for <strong>${data.ballotTitle}</strong>.</p>
+				<p>You can view the ballot here: <a href="${ballotUrl}">${ballotUrl}</a></p>
+			</body></html>`;
+			const text = `Voting is now closed for ${data.ballotTitle}. View ballot: ${ballotUrl}`;
+			const result = await resend.emails.send({
+				from: this.fromEmail,
+				to: data.voterEmail,
+				subject,
+				html,
+				text
+			});
+			return !!result.data;
+		} catch (error) {
+			console.error('Failed to send ballot closed email:', error);
+			return false;
+		}
+	}
+}
+
+async function main() {
+	return EmailService.sendBallotClosedEmail({
+		ballotId: '1',
+		ballotTitle: 'Test Ballot',
+		voterEmail: 'test@example.com',
+		voterName: 'Test User'
+	});
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+	// This code runs only when the module is executed directly
+	console.log('This is the main module!');
 }

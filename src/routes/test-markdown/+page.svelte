@@ -39,18 +39,19 @@ function hello() {
 You can combine **bold** and *italic* text, add [links](https://example.com), and include \`inline code\` all in one paragraph.`;
 </script>
 
-<div class="container mx-auto p-8 max-w-4xl">
-	<h1 class="text-3xl font-bold mb-6">Markdown Test Page</h1>
-	
-	<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<div class="container mx-auto max-w-4xl p-8">
+	<h1 class="mb-6 text-3xl font-bold">Markdown Test Page</h1>
+
+	<div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
 		<div>
-			<h2 class="text-xl font-semibold mb-4">Raw Markdown</h2>
-			<pre class="bg-gray-100 p-4 rounded text-sm overflow-x-auto whitespace-pre-wrap">{testMarkdown}</pre>
+			<h2 class="mb-4 text-xl font-semibold">Raw Markdown</h2>
+			<pre
+				class="overflow-x-auto whitespace-pre-wrap rounded bg-gray-100 p-4 text-sm">{testMarkdown}</pre>
 		</div>
-		
+
 		<div>
-			<h2 class="text-xl font-semibold mb-4">Rendered Output</h2>
-			<div class="bg-white border border-gray-200 p-4 rounded">
+			<h2 class="mb-4 text-xl font-semibold">Rendered Output</h2>
+			<div class="rounded border border-gray-200 bg-white p-4">
 				<Markdown content={testMarkdown} />
 			</div>
 		</div>
@@ -59,6 +60,9 @@ You can combine **bold** and *italic* text, add [links](https://example.com), an
 
 <style>
 	.container {
-		font-family: system-ui, -apple-system, sans-serif;
+		font-family:
+			system-ui,
+			-apple-system,
+			sans-serif;
 	}
 </style>

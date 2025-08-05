@@ -154,33 +154,33 @@
 </svelte:head>
 
 <div class="container mx-auto px-4 py-8">
-	<div class="flex justify-between items-center mb-8 p-2">
+	<div class="mb-8 flex items-center justify-between p-2">
 		<h1 class="text-3xl font-bold text-gray-900">Voter Lists</h1>
 		<button
 			on:click={openCreateListModal}
-			class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+			class="rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
 		>
 			Create New List
 		</button>
 	</div>
 
 	{#if error}
-		<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+		<div class="mb-4 rounded border border-red-400 bg-red-100 px-4 py-3 text-red-700">
 			{error}
 		</div>
 	{/if}
 
 	{#if loading}
-		<div class="text-center py-8">
-			<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+		<div class="py-8 text-center">
+			<div class="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
 			<p class="mt-4 text-gray-600">Loading voter lists...</p>
 		</div>
 	{:else if voterLists.length === 0}
-		<div class="text-center py-12">
-			<p class="text-gray-600 text-lg">No voter lists created yet.</p>
+		<div class="py-12 text-center">
+			<p class="text-lg text-gray-600">No voter lists created yet.</p>
 			<button
 				on:click={openCreateListModal}
-				class="mt-4 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+				class="mt-4 rounded-lg bg-blue-600 px-6 py-3 text-white transition-colors hover:bg-blue-700"
 			>
 				Create Your First List
 			</button>
@@ -188,27 +188,27 @@
 	{:else}
 		<div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 			{#each voterLists as list}
-				<div class="bg-white rounded-lg shadow-md p-4 border border-gray-200">
-					<h3 class="text-xl font-semibold text-gray-900 mb-2">{list.name}</h3>
+				<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-md">
+					<h3 class="mb-2 text-xl font-semibold text-gray-900">{list.name}</h3>
 					{#if list.description}
-						<div class="text-gray-600 mb-4">
+						<div class="mb-4 text-gray-600">
 							<Markdown content={list.description} />
 						</div>
 					{/if}
-					<div class="text-sm text-gray-500 mb-4">
+					<div class="mb-4 text-sm text-gray-500">
 						<p>{list.voterCount} voters</p>
 						<p>Created {formatDate(list.created_at)}</p>
 					</div>
 					<div class="flex gap-2">
 						<button
 							on:click={() => viewVoterList(list)}
-							class="flex-1 bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 transition-colors text-sm"
+							class="flex-1 rounded bg-blue-600 px-3 py-2 text-sm text-white transition-colors hover:bg-blue-700"
 						>
 							View Details
 						</button>
 						<button
 							on:click={() => deleteVoterList(list.id)}
-							class="bg-red-600 text-white px-3 py-2 rounded hover:bg-red-700 transition-colors text-sm"
+							class="rounded bg-red-600 px-3 py-2 text-sm text-white transition-colors hover:bg-red-700"
 						>
 							Delete
 						</button>
@@ -228,7 +228,7 @@
 >
 	<form on:submit|preventDefault={createVoterList}>
 		<div class="mb-4">
-			<label for="create-list-name" class="block text-sm font-medium text-gray-700 mb-2">
+			<label for="create-list-name" class="mb-2 block text-sm font-medium text-gray-700">
 				List Name *
 			</label>
 			<input
@@ -237,44 +237,44 @@
 				type="text"
 				bind:value={newListName}
 				required
-				class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+				class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
 				placeholder="Enter list name"
 				data-autofocus
 			/>
 		</div>
 
 		<div class="mb-4">
-			<label for="description" class="block text-sm font-medium text-gray-700 mb-2">
+			<label for="description" class="mb-2 block text-sm font-medium text-gray-700">
 				Description (Markdown supported)
 			</label>
 			<MarkdownInput bind:value={newListDescription} />
 		</div>
 
 		<div class="mb-6">
-			<label for="voters" class="block text-sm font-medium text-gray-700 mb-2">
+			<label for="voters" class="mb-2 block text-sm font-medium text-gray-700">
 				Voter Emails (one per line)
 			</label>
 			<textarea
 				id="voters"
 				bind:value={newListVoterEmails}
 				rows="6"
-				class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+				class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
 				placeholder="voter1@example.com&#10;voter2@example.com&#10;voter3@example.com"
 			></textarea>
 		</div>
 	</form>
 
-	<div slot="footer" class="flex gap-3 justify-end">
+	<div slot="footer" class="flex justify-end gap-3">
 		<button
 			type="button"
-			class="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
+			class="flex-1 rounded-md bg-gray-300 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-400"
 			on:click={closeCreateListModal}
 		>
 			Cancel
 		</button>
 		<button
 			type="button"
-			class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
+			class="flex-1 rounded-md bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
 			on:click={createVoterList}
 		>
 			Create List
@@ -291,18 +291,18 @@
 	closeOnOutsideClick={true}
 >
 	{#if selectedList}
-		<div class="flex justify-between items-center mb-4">
+		<div class="mb-4 flex items-center justify-between">
 			<h2 class="text-2xl font-bold text-gray-900">{selectedList.name}</h2>
 		</div>
 
 		{#if selectedList.description}
-			<div class="text-gray-600 mb-4">
+			<div class="mb-4 text-gray-600">
 				<Markdown content={selectedList.description} />
 			</div>
 		{/if}
 
 		<div class="mb-4">
-			<h3 class="text-lg font-semibold text-gray-900 mb-2">
+			<h3 class="mb-2 text-lg font-semibold text-gray-900">
 				Voters ({selectedListVoters.length})
 			</h3>
 
@@ -311,7 +311,7 @@
 			{:else}
 				<div class="space-y-2">
 					{#each selectedListVoters as voter}
-						<div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+						<div class="flex items-center justify-between rounded-lg bg-gray-50 p-3">
 							<div>
 								<p class="font-medium text-gray-900">{voter.email}</p>
 								{#if voter.name}
@@ -320,13 +320,13 @@
 							</div>
 							<div class="text-right">
 								<span
-									class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {voter.user_id
+									class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {voter.user_id
 										? 'bg-green-100 text-green-800'
 										: 'bg-yellow-100 text-yellow-800'}"
 								>
 									{getVoterStatus(voter)}
 								</span>
-								<p class="text-xs text-gray-500 mt-1">Added {formatDate(voter.added_at)}</p>
+								<p class="mt-1 text-xs text-gray-500">Added {formatDate(voter.added_at)}</p>
 							</div>
 						</div>
 					{/each}
@@ -337,7 +337,7 @@
 	<div slot="footer" class="flex justify-end">
 		<button
 			on:click={closeModal}
-			class="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors"
+			class="rounded-md bg-gray-300 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-400"
 		>
 			Close
 		</button>

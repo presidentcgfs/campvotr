@@ -1,558 +1,506 @@
 {
-  "id": "2e8bc176-086c-4e67-a96a-826599de3ae5",
-  "prevId": "00000000-0000-0000-0000-000000000000",
-  "version": "7",
-  "dialect": "postgresql",
-  "tables": {
-    "public.ballot_voters": {
-      "name": "ballot_voters",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "ballot_id": {
-          "name": "ballot_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "voter_id": {
-          "name": "voter_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "added_at": {
-          "name": "added_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "ballot_voters_ballot_id_ballots_id_fk": {
-          "name": "ballot_voters_ballot_id_ballots_id_fk",
-          "tableFrom": "ballot_voters",
-          "tableTo": "ballots",
-          "columnsFrom": [
-            "ballot_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "ballot_voters_voter_id_voters_id_fk": {
-          "name": "ballot_voters_voter_id_voters_id_fk",
-          "tableFrom": "ballot_voters",
-          "tableTo": "voters",
-          "columnsFrom": [
-            "voter_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.ballots": {
-      "name": "ballots",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "title": {
-          "name": "title",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "creator_id": {
-          "name": "creator_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "voter_list_id": {
-          "name": "voter_list_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "google_group_id": {
-          "name": "google_group_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "voting_opens_at": {
-          "name": "voting_opens_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "voting_closes_at": {
-          "name": "voting_closes_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "voting_threshold": {
-          "name": "voting_threshold",
-          "type": "voting_threshold",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'simple_majority'"
-        },
-        "threshold_percentage": {
-          "name": "threshold_percentage",
-          "type": "numeric(5, 2)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "quorum_required": {
-          "name": "quorum_required",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "ballot_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'draft'"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "ballots_voter_list_id_voter_lists_id_fk": {
-          "name": "ballots_voter_list_id_voter_lists_id_fk",
-          "tableFrom": "ballots",
-          "tableTo": "voter_lists",
-          "columnsFrom": [
-            "voter_list_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.notifications": {
-      "name": "notifications",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ballot_id": {
-          "name": "ballot_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "type": {
-          "name": "type",
-          "type": "notification_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "message": {
-          "name": "message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sent_at": {
-          "name": "sent_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "read_at": {
-          "name": "read_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "notifications_ballot_id_ballots_id_fk": {
-          "name": "notifications_ballot_id_ballots_id_fk",
-          "tableFrom": "notifications",
-          "tableTo": "ballots",
-          "columnsFrom": [
-            "ballot_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.voter_list_members": {
-      "name": "voter_list_members",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "voter_list_id": {
-          "name": "voter_list_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "voter_id": {
-          "name": "voter_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "added_at": {
-          "name": "added_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "voter_list_members_voter_list_id_voter_lists_id_fk": {
-          "name": "voter_list_members_voter_list_id_voter_lists_id_fk",
-          "tableFrom": "voter_list_members",
-          "tableTo": "voter_lists",
-          "columnsFrom": [
-            "voter_list_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "voter_list_members_voter_id_voters_id_fk": {
-          "name": "voter_list_members_voter_id_voters_id_fk",
-          "tableFrom": "voter_list_members",
-          "tableTo": "voters",
-          "columnsFrom": [
-            "voter_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.voter_lists": {
-      "name": "voter_lists",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "name": {
-          "name": "name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.voters": {
-      "name": "voters",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "email": {
-          "name": "email",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "voters_email_unique": {
-          "name": "voters_email_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.votes": {
-      "name": "votes",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "ballot_id": {
-          "name": "ballot_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "voter_id": {
-          "name": "voter_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "vote_choice": {
-          "name": "vote_choice",
-          "type": "vote_choice",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "voted_at": {
-          "name": "voted_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "votes_ballot_id_ballots_id_fk": {
-          "name": "votes_ballot_id_ballots_id_fk",
-          "tableFrom": "votes",
-          "tableTo": "ballots",
-          "columnsFrom": [
-            "ballot_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "votes_voter_id_voters_id_fk": {
-          "name": "votes_voter_id_voters_id_fk",
-          "tableFrom": "votes",
-          "tableTo": "voters",
-          "columnsFrom": [
-            "voter_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    }
-  },
-  "enums": {
-    "public.ballot_status": {
-      "name": "ballot_status",
-      "schema": "public",
-      "values": [
-        "draft",
-        "open",
-        "closed"
-      ]
-    },
-    "public.notification_type": {
-      "name": "notification_type",
-      "schema": "public",
-      "values": [
-        "new_ballot",
-        "voting_reminder",
-        "voting_closed",
-        "voting_opened"
-      ]
-    },
-    "public.vote_choice": {
-      "name": "vote_choice",
-      "schema": "public",
-      "values": [
-        "yea",
-        "nay",
-        "abstain"
-      ]
-    },
-    "public.voting_threshold": {
-      "name": "voting_threshold",
-      "schema": "public",
-      "values": [
-        "simple_majority",
-        "supermajority",
-        "unanimous",
-        "custom"
-      ]
-    }
-  },
-  "schemas": {},
-  "sequences": {},
-  "roles": {},
-  "policies": {},
-  "views": {},
-  "_meta": {
-    "columns": {},
-    "schemas": {},
-    "tables": {}
-  }
+	"id": "2e8bc176-086c-4e67-a96a-826599de3ae5",
+	"prevId": "00000000-0000-0000-0000-000000000000",
+	"version": "7",
+	"dialect": "postgresql",
+	"tables": {
+		"public.ballot_voters": {
+			"name": "ballot_voters",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"ballot_id": {
+					"name": "ballot_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"voter_id": {
+					"name": "voter_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"added_at": {
+					"name": "added_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"ballot_voters_ballot_id_ballots_id_fk": {
+					"name": "ballot_voters_ballot_id_ballots_id_fk",
+					"tableFrom": "ballot_voters",
+					"tableTo": "ballots",
+					"columnsFrom": ["ballot_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"ballot_voters_voter_id_voters_id_fk": {
+					"name": "ballot_voters_voter_id_voters_id_fk",
+					"tableFrom": "ballot_voters",
+					"tableTo": "voters",
+					"columnsFrom": ["voter_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.ballots": {
+			"name": "ballots",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"title": {
+					"name": "title",
+					"type": "varchar(255)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"creator_id": {
+					"name": "creator_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"voter_list_id": {
+					"name": "voter_list_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"google_group_id": {
+					"name": "google_group_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"voting_opens_at": {
+					"name": "voting_opens_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"voting_closes_at": {
+					"name": "voting_closes_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"voting_threshold": {
+					"name": "voting_threshold",
+					"type": "voting_threshold",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'simple_majority'"
+				},
+				"threshold_percentage": {
+					"name": "threshold_percentage",
+					"type": "numeric(5, 2)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"quorum_required": {
+					"name": "quorum_required",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"status": {
+					"name": "status",
+					"type": "ballot_status",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'draft'"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"ballots_voter_list_id_voter_lists_id_fk": {
+					"name": "ballots_voter_list_id_voter_lists_id_fk",
+					"tableFrom": "ballots",
+					"tableTo": "voter_lists",
+					"columnsFrom": ["voter_list_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.notifications": {
+			"name": "notifications",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"user_id": {
+					"name": "user_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"ballot_id": {
+					"name": "ballot_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"type": {
+					"name": "type",
+					"type": "notification_type",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"message": {
+					"name": "message",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"sent_at": {
+					"name": "sent_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"read_at": {
+					"name": "read_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"notifications_ballot_id_ballots_id_fk": {
+					"name": "notifications_ballot_id_ballots_id_fk",
+					"tableFrom": "notifications",
+					"tableTo": "ballots",
+					"columnsFrom": ["ballot_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.voter_list_members": {
+			"name": "voter_list_members",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"voter_list_id": {
+					"name": "voter_list_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"voter_id": {
+					"name": "voter_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"added_at": {
+					"name": "added_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"voter_list_members_voter_list_id_voter_lists_id_fk": {
+					"name": "voter_list_members_voter_list_id_voter_lists_id_fk",
+					"tableFrom": "voter_list_members",
+					"tableTo": "voter_lists",
+					"columnsFrom": ["voter_list_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"voter_list_members_voter_id_voters_id_fk": {
+					"name": "voter_list_members_voter_id_voters_id_fk",
+					"tableFrom": "voter_list_members",
+					"tableTo": "voters",
+					"columnsFrom": ["voter_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.voter_lists": {
+			"name": "voter_lists",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"name": {
+					"name": "name",
+					"type": "varchar(255)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_by": {
+					"name": "created_by",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.voters": {
+			"name": "voters",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"email": {
+					"name": "email",
+					"type": "varchar(255)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"name": {
+					"name": "name",
+					"type": "varchar(255)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"user_id": {
+					"name": "user_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"voters_email_unique": {
+					"name": "voters_email_unique",
+					"nullsNotDistinct": false,
+					"columns": ["email"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.votes": {
+			"name": "votes",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"ballot_id": {
+					"name": "ballot_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"voter_id": {
+					"name": "voter_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"vote_choice": {
+					"name": "vote_choice",
+					"type": "vote_choice",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"voted_at": {
+					"name": "voted_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"votes_ballot_id_ballots_id_fk": {
+					"name": "votes_ballot_id_ballots_id_fk",
+					"tableFrom": "votes",
+					"tableTo": "ballots",
+					"columnsFrom": ["ballot_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"votes_voter_id_voters_id_fk": {
+					"name": "votes_voter_id_voters_id_fk",
+					"tableFrom": "votes",
+					"tableTo": "voters",
+					"columnsFrom": ["voter_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		}
+	},
+	"enums": {
+		"public.ballot_status": {
+			"name": "ballot_status",
+			"schema": "public",
+			"values": ["draft", "open", "closed"]
+		},
+		"public.notification_type": {
+			"name": "notification_type",
+			"schema": "public",
+			"values": ["new_ballot", "voting_reminder", "voting_closed", "voting_opened"]
+		},
+		"public.vote_choice": {
+			"name": "vote_choice",
+			"schema": "public",
+			"values": ["yea", "nay", "abstain"]
+		},
+		"public.voting_threshold": {
+			"name": "voting_threshold",
+			"schema": "public",
+			"values": ["simple_majority", "supermajority", "unanimous", "custom"]
+		}
+	},
+	"schemas": {},
+	"sequences": {},
+	"roles": {},
+	"policies": {},
+	"views": {},
+	"_meta": {
+		"columns": {},
+		"schemas": {},
+		"tables": {}
+	}
 }

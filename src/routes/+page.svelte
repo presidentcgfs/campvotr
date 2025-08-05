@@ -23,7 +23,7 @@
 
 	<div class="features">
 		<h2>Features</h2>
-		<div class="grid grid-2">
+		<div class="grid-2 grid">
 			<div class="card">
 				<h3>🗳️ Democratic Voting</h3>
 				<p>
