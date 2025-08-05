@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
+	import Modal from '../../components/Modal.svelte';
+	import MarkdownInput from '$lib/components/MarkdownInput.svelte';
 
 	interface VoterList {
 		id: string;
@@ -22,19 +24,23 @@
 	$: voterLists = [];
 	$: loading = true;
 	$: error = '';
-	$: showCreateForm = false;
+	let showCreateForm = false;
 	let selectedList: VoterList | null = null;
-	$: selectedList = null;
 	let selectedListVoters: Voter[] = [];
-	$: selectedListVoters = [];
 	$: {
 		console.log({ selectedList });
 	}
 	// Form data
-	$: newListName = '';
-	$: newListDescription = '';
-	$: newListVoterEmails = '';
+	let newListName = '';
+	let newListDescription = '';
+	let newListVoterEmails = '';
 
+	function openCreateListModal() {
+		showCreateForm = true;
+	}
+	function closeCreateListModal() {
+		showCreateForm = false;
+	}
 	onMount(async () => {
 		await fetchVoterLists();
 	});
@@ -151,7 +157,7 @@
 	<div class="flex justify-between items-center mb-8 p-2">
 		<h1 class="text-3xl font-bold text-gray-900">Voter Lists</h1>
 		<button
-			on:click={() => (showCreateForm = true)}
+			on:click={openCreateListModal}
 			class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
 		>
 			Create New List
@@ -173,7 +179,7 @@
 		<div class="text-center py-12">
 			<p class="text-gray-600 text-lg">No voter lists created yet.</p>
 			<button
-				on:click={() => (showCreateForm = true)}
+				on:click={openCreateListModal}
 				class="mt-4 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
 			>
 				Create Your First List
@@ -213,145 +219,127 @@
 	{/if}
 </div>
 
-<!-- Create Voter List Modal -->
-{#if showCreateForm}
-	<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-		<div class="bg-white rounded-lg max-w-md w-full p-6">
-			<h2 class="text-2xl font-bold text-gray-900 mb-4">Create New Voter List</h2>
-
-			<form on:submit|preventDefault={createVoterList}>
-				<div class="mb-4">
-					<label for="name" class="block text-sm font-medium text-gray-700 mb-2">
-						List Name *
-					</label>
-					<input
-						id="name"
-						type="text"
-						bind:value={newListName}
-						required
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-						placeholder="Enter list name"
-					/>
-				</div>
-
-				<div class="mb-4">
-					<label for="description" class="block text-sm font-medium text-gray-700 mb-2">
-						Description (Markdown supported)
-					</label>
-					<textarea
-						id="description"
-						bind:value={newListDescription}
-						rows="4"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-						placeholder="Optional description. You can use Markdown formatting:&#10;**bold text**, *italic text*, [links](https://example.com)&#10;- Bullet points&#10;1. Numbered lists"
-					></textarea>
-					<p class="text-xs text-gray-500 mt-1">
-						Supports Markdown formatting: **bold**, *italic*, [links](url), lists, etc.
-					</p>
-				</div>
-
-				<div class="mb-6">
-					<label for="voters" class="block text-sm font-medium text-gray-700 mb-2">
-						Voter Emails (one per line)
-					</label>
-					<textarea
-						id="voters"
-						bind:value={newListVoterEmails}
-						rows="6"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-						placeholder="voter1@example.com&#10;voter2@example.com&#10;voter3@example.com"
-					></textarea>
-				</div>
-
-				<div class="flex gap-3">
-					<button
-						type="submit"
-						class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
-					>
-						Create List
-					</button>
-					<button
-						type="button"
-						on:click={() => (showCreateForm = false)}
-						class="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
-					>
-						Cancel
-					</button>
-				</div>
-			</form>
+<!-- Create Voter List Modal (reusable component) -->
+<Modal
+	bind:open={showCreateForm}
+	title="Create New Voter List"
+	size="md"
+	initialFocus="input[name='listName']"
+>
+	<form on:submit|preventDefault={createVoterList}>
+		<div class="mb-4">
+			<label for="create-list-name" class="block text-sm font-medium text-gray-700 mb-2">
+				List Name *
+			</label>
+			<input
+				id="create-list-name"
+				name="listName"
+				type="text"
+				bind:value={newListName}
+				required
+				class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+				placeholder="Enter list name"
+				data-autofocus
+			/>
 		</div>
+
+		<div class="mb-4">
+			<label for="description" class="block text-sm font-medium text-gray-700 mb-2">
+				Description (Markdown supported)
+			</label>
+			<MarkdownInput bind:value={newListDescription} />
+		</div>
+
+		<div class="mb-6">
+			<label for="voters" class="block text-sm font-medium text-gray-700 mb-2">
+				Voter Emails (one per line)
+			</label>
+			<textarea
+				id="voters"
+				bind:value={newListVoterEmails}
+				rows="6"
+				class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+				placeholder="voter1@example.com&#10;voter2@example.com&#10;voter3@example.com"
+			></textarea>
+		</div>
+	</form>
+
+	<div slot="footer" class="flex gap-3 justify-end">
+		<button
+			type="button"
+			class="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
+			on:click={closeCreateListModal}
+		>
+			Cancel
+		</button>
+		<button
+			type="button"
+			class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
+			on:click={createVoterList}
+		>
+			Create List
+		</button>
 	</div>
-{/if}
+</Modal>
 
-<!-- Voter List Details Modal -->
-{#if selectedList}
-	<div
-		class="selected-list fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-	>
-		<div class="bg-white rounded-lg max-w-2xl w-full p-6 max-h-[80vh] overflow-y-auto">
-			<div class="flex justify-between items-center mb-4">
-				<h2 class="text-2xl font-bold text-gray-900">{selectedList.name}</h2>
-				<button on:click={closeModal} class="text-gray-500 hover:text-gray-700" aria-label="Close">
-					<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M6 18L18 6M6 6l12 12"
-						></path>
-					</svg>
-				</button>
+<!-- Voter List Details Modal (reusable component) -->
+<Modal
+	open={!!selectedList}
+	role="dialog"
+	size="lg"
+	ariaLabel={selectedList ? `${selectedList.name} details` : 'Voter list details'}
+	closeOnOutsideClick={true}
+>
+	{#if selectedList}
+		<div class="flex justify-between items-center mb-4">
+			<h2 class="text-2xl font-bold text-gray-900">{selectedList.name}</h2>
+		</div>
+
+		{#if selectedList.description}
+			<div class="text-gray-600 mb-4">
+				<Markdown content={selectedList.description} />
 			</div>
+		{/if}
 
-			{#if selectedList.description}
-				<div class="text-gray-600 mb-4">
-					<Markdown content={selectedList.description} />
+		<div class="mb-4">
+			<h3 class="text-lg font-semibold text-gray-900 mb-2">
+				Voters ({selectedListVoters.length})
+			</h3>
+
+			{#if selectedListVoters.length === 0}
+				<p class="text-gray-500">No voters in this list yet.</p>
+			{:else}
+				<div class="space-y-2">
+					{#each selectedListVoters as voter}
+						<div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+							<div>
+								<p class="font-medium text-gray-900">{voter.email}</p>
+								{#if voter.name}
+									<p class="text-sm text-gray-600">{voter.name}</p>
+								{/if}
+							</div>
+							<div class="text-right">
+								<span
+									class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {voter.user_id
+										? 'bg-green-100 text-green-800'
+										: 'bg-yellow-100 text-yellow-800'}"
+								>
+									{getVoterStatus(voter)}
+								</span>
+								<p class="text-xs text-gray-500 mt-1">Added {formatDate(voter.added_at)}</p>
+							</div>
+						</div>
+					{/each}
 				</div>
 			{/if}
-
-			<div class="mb-4">
-				<h3 class="text-lg font-semibold text-gray-900 mb-2">
-					Voters ({selectedListVoters.length})
-				</h3>
-
-				{#if selectedListVoters.length === 0}
-					<p class="text-gray-500">No voters in this list yet.</p>
-				{:else}
-					<div class="space-y-2">
-						{#each selectedListVoters as voter}
-							<div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-								<div>
-									<p class="font-medium text-gray-900">{voter.email}</p>
-									{#if voter.name}
-										<p class="text-sm text-gray-600">{voter.name}</p>
-									{/if}
-								</div>
-								<div class="text-right">
-									<span
-										class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {voter.user_id
-											? 'bg-green-100 text-green-800'
-											: 'bg-yellow-100 text-yellow-800'}"
-									>
-										{getVoterStatus(voter)}
-									</span>
-									<p class="text-xs text-gray-500 mt-1">
-										Added {formatDate(voter.added_at)}
-									</p>
-								</div>
-							</div>
-						{/each}
-					</div>
-				{/if}
-			</div>
-
-			<div class="flex justify-end">
-				<button
-					on:click={closeModal}
-					class="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors"
-				>
-					Close
-				</button>
-			</div>
 		</div>
+	{/if}
+	<div slot="footer" class="flex justify-end">
+		<button
+			on:click={closeModal}
+			class="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors"
+		>
+			Close
+		</button>
 	</div>
-{/if}
+</Modal>

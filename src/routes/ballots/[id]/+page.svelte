@@ -7,7 +7,8 @@
 	import { formatDateTime } from '$lib/utils/date';
 	import VotingProgress from '$lib/components/VotingProgress.svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
-	import OpenVotingModal from '$lib/components/OpenVotingModal.svelte';
+	import Modal from '../../../components/Modal.svelte';
+	// import OpenVotingModal from '$lib/components/OpenVotingModal.svelte';
 
 	let ballot: BallotWithVotes | null = null;
 	let loading = true;
@@ -16,7 +17,6 @@
 	let voteError = '';
 	let realtimeTracker: RealtimeVoteTracker | null = null;
 	let showOpenVotingModal = false;
-	let openVotingModal: OpenVotingModal;
 	let selectedChoice: VoteChoice | null = null;
 
 	$: ballotId = $page.params.id;
@@ -133,15 +133,15 @@
 			if (response.ok) {
 				const result = await response.json();
 				ballot = { ...ballot, ...result.ballot };
-				openVotingModal.handleSuccess();
+				showOpenVotingModal = false;
 				// Reload ballot to get fresh data
 				await loadBallot();
 			} else {
 				const errorData = await response.json();
-				openVotingModal.handleError(errorData.error || 'Failed to open voting');
+				voteError = errorData.error || 'Failed to open voting';
 			}
 		} catch (err) {
-			openVotingModal.handleError('Network error. Please try again.');
+			voteError = 'Network error. Please try again.';
 		}
 	}
 </script>
@@ -190,6 +190,7 @@
 					<button
 						class="btn btn-primary open-voting-btn"
 						on:click={() => (showOpenVotingModal = true)}
+						aria-haspopup="dialog"
 					>
 						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
 							<path
@@ -300,13 +301,52 @@
 	{/if}
 </div>
 
-<!-- Open Voting Modal -->
-<OpenVotingModal
-	bind:this={openVotingModal}
-	bind:isOpen={showOpenVotingModal}
-	ballotTitle={ballot?.title || ''}
-	onConfirm={handleOpenVoting}
-/>
+<!-- Open Voting Modal (reusable) -->
+<Modal bind:open={showOpenVotingModal} title="Open Voting" size="md" initialFocus="#voting-opens">
+	<p class="ballot-info">
+		You are about to open voting for: <strong>{ballot?.title || ''}</strong>
+	</p>
+	<form
+		id="open-voting-form"
+		on:submit|preventDefault={(e) => {
+			const form = e.currentTarget as HTMLFormElement;
+			const opens = (form.querySelector('#voting-opens') as HTMLInputElement).value;
+			const closes = (form.querySelector('#voting-closes') as HTMLInputElement).value;
+			const notify = (form.querySelector('#send-notifications') as HTMLInputElement).checked;
+			handleOpenVoting({ votingOpensAt: opens, votingClosesAt: closes, sendNotifications: notify });
+		}}
+	>
+		<div class="form-group">
+			<label for="voting-opens">Voting Opens *</label>
+			<input id="voting-opens" type="datetime-local" required data-autofocus />
+			<small class="form-help">When voters can start casting their votes</small>
+		</div>
+		<div class="form-group">
+			<label for="voting-closes">Voting Closes *</label>
+			<input id="voting-closes" type="datetime-local" required />
+			<small class="form-help">When voting will automatically close</small>
+		</div>
+		<div class="form-group">
+			<label class="checkbox-label">
+				<input id="send-notifications" type="checkbox" checked />
+				<span class="checkbox-text">Send notification to voters</span>
+			</label>
+			<small class="form-help"
+				>Notify all eligible voters that voting has started for this ballot</small
+			>
+		</div>
+		{#if voteError}
+			<div class="error" aria-live="polite">{voteError}</div>
+		{/if}
+	</form>
+
+	<div slot="footer" class="modal-actions">
+		<button type="button" class="btn btn-secondary" on:click={() => (showOpenVotingModal = false)}>
+			Cancel
+		</button>
+		<button type="submit" form="open-voting-form" class="btn btn-primary">Open Voting</button>
+	</div>
+</Modal>
 
 <style>
 	.ballot-detail {

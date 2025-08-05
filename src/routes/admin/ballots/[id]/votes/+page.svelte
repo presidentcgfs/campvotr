@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { session } from '$lib/stores/auth';
 	import { goto } from '$app/navigation';
+	import Modal from '../../../../../components/Modal.svelte';
 
 	type Vote = {
 		id: string;
@@ -141,53 +142,47 @@
 	</section>
 {/if}
 
-{#if showModal}
-	<div class="modal-backdrop" role="dialog" aria-modal="true">
-		<div class="modal">
-			<h2>Set/Change Vote</h2>
-			<fieldset>
-				<legend>Vote Choice</legend>
-				<label
-					><input
-						type="radio"
-						name="choice"
-						value="yea"
-						on:change={() => (newChoice = 'yea')}
-						checked={newChoice === 'yea'}
-					/> Yea</label
-				>
-				<label
-					><input
-						type="radio"
-						name="choice"
-						value="nay"
-						on:change={() => (newChoice = 'nay')}
-						checked={newChoice === 'nay'}
-					/> Nay</label
-				>
-				<label
-					><input
-						type="radio"
-						name="choice"
-						value="abstain"
-						on:change={() => (newChoice = 'abstain')}
-						checked={newChoice === 'abstain'}
-					/> Abstain</label
-				>
-			</fieldset>
-			<label
-				>Reason (optional)
-				<textarea bind:value={reason} rows="3" maxlength="500"></textarea>
-			</label>
-			<label><input type="checkbox" bind:checked={notifyUser} /> Notify voter by email</label>
-			<div class="actions">
-				<button class="btn" on:click={() => (showModal = false)}>Cancel</button>
-				<button class="btn btn-primary" on:click={submitOverride} disabled={!newChoice}>Save</button
-				>
-			</div>
-		</div>
+<Modal bind:open={showModal} title="Set/Change Vote" size="md" initialFocus="input[name='choice']">
+	<fieldset>
+		<legend>Vote Choice</legend>
+		<label
+			><input
+				type="radio"
+				name="choice"
+				value="yea"
+				on:change={() => (newChoice = 'yea')}
+				checked={newChoice === 'yea'}
+			/> Yea</label
+		>
+		<label
+			><input
+				type="radio"
+				name="choice"
+				value="nay"
+				on:change={() => (newChoice = 'nay')}
+				checked={newChoice === 'nay'}
+			/> Nay</label
+		>
+		<label
+			><input
+				type="radio"
+				name="choice"
+				value="abstain"
+				on:change={() => (newChoice = 'abstain')}
+				checked={newChoice === 'abstain'}
+			/> Abstain</label
+		>
+	</fieldset>
+	<label
+		>Reason (optional)
+		<textarea bind:value={reason} rows="3" maxlength="500"></textarea>
+	</label>
+	<label><input type="checkbox" bind:checked={notifyUser} /> Notify voter by email</label>
+	<div slot="footer" class="actions">
+		<button class="btn" on:click={() => (showModal = false)}>Cancel</button>
+		<button class="btn btn-primary" on:click={submitOverride} disabled={!newChoice}>Save</button>
 	</div>
-{/if}
+</Modal>
 
 <style>
 	.counts {
@@ -204,18 +199,5 @@
 		border: 1px solid #e2e8f0;
 		padding: 0.5rem;
 		text-align: left;
-	}
-	.modal-backdrop {
-		position: fixed;
-		inset: 0;
-		background: rgba(0, 0, 0, 0.4);
-		display: grid;
-		place-items: center;
-	}
-	.modal {
-		background: white;
-		padding: 1rem;
-		border-radius: 6px;
-		width: min(520px, 95vw);
 	}
 </style>
