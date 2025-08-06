@@ -1,7 +1,7 @@
 import { db, ballots, notifications } from '$lib/db';
 import { and, asc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { BallotService } from '$lib/db/queries';
-import { EmailService } from '$lib/server/email';
+import { emailService } from './email.svelte';
 
 export type BallotRow = typeof ballots.$inferSelect;
 
@@ -91,11 +91,10 @@ export class BallotCron {
 		// 1) Open reminders (any status)
 		try {
 			await this.iterateBatches(maxIterations, async () => {
-				const windowEnd = new Date(now.getTime() + config.openReminderMinutes * 60_000);
 				const toRemind = await db
 					.select()
 					.from(ballots)
-					.where(and(gte(ballots.voting_opens_at, now), lte(ballots.voting_opens_at, windowEnd)))
+					.where(and(gte(ballots.voting_opens_at, now), lte(ballots.voting_closes_at, now)))
 					.orderBy(asc(ballots.voting_opens_at))
 					.limit(config.batchSize);
 				if (toRemind.length === 0) return false;
@@ -119,7 +118,7 @@ export class BallotCron {
 						const withKey = withKeyMessage(key, message);
 						if (!config.dryRun) {
 							try {
-								const ok = await EmailService.sendBallotReminderEmail({
+								const ok = await emailService.sendBallotReminderEmail({
 									type: 'open',
 									ballotId: b.id,
 									ballotTitle: b.title,
@@ -191,7 +190,7 @@ export class BallotCron {
 						const withKey = withKeyMessage(key, message);
 						if (!config.dryRun) {
 							try {
-								const ok = await EmailService.sendBallotReminderEmail({
+								const ok = await emailService.sendBallotReminderEmail({
 									type: 'close',
 									ballotId: b.id,
 									ballotTitle: b.title,
@@ -261,7 +260,7 @@ export class BallotCron {
 							}
 							if (!config.dryRun) {
 								try {
-									const ok = await EmailService.sendBallotOpenedEmail({
+									const ok = await emailService.sendBallotOpenedEmail({
 										ballotId: b.id,
 										ballotTitle: b.title,
 										voterEmail: r.email,
@@ -325,7 +324,7 @@ export class BallotCron {
 							}
 							if (!config.dryRun) {
 								try {
-									const ok = await EmailService.sendBallotClosedEmail({
+									const ok = await emailService.sendBallotClosedEmail({
 										ballotId: b.id,
 										ballotTitle: b.title,
 										voterEmail: r.email,
