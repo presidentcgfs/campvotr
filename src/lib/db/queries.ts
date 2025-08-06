@@ -2,7 +2,7 @@ import { db, ballots, votes, notifications, voteEvents } from './index';
 import { voters, voterListMembers, ballotVoters } from './schema';
 import { eq, and, desc, sql, count, or, inArray } from 'drizzle-orm';
 import type { VoteChoice, BallotStatus, VoteCounts } from '../types';
-import { EmailService } from '$lib/server/email';
+import { emailService } from '$lib/server/email.svelte';
 
 function canAccessQuery(userId: string) {
 	return or(eq(ballotVoters.voter_id, userId), eq(ballots.creator_id, userId));
@@ -228,7 +228,7 @@ export class BallotService {
 			}));
 
 			// Send emails in bulk
-			const successCount = await EmailService.sendBulkVoterInvitations(invitations);
+			const successCount = await emailService.sendBulkVoterInvitations(invitations);
 			console.log(
 				`Sent ${successCount}/${invitations.length} voter invitations for ballot ${ballot.id}`
 			);
