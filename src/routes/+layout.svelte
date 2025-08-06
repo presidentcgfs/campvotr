@@ -7,6 +7,16 @@
 		AuthService.onAuthStateChange((ess) => {
 			console.log('auth change', ess);
 		});
+	import { page } from '$app/state';
+	import { applyTheme } from '$lib/utils/theme';
+	$: org = page.data.organizationContext?.organization ?? null;
+	if (browser && org) {
+		applyTheme({
+			primaryColor: org.primary_color,
+			secondaryColor: org.secondary_color,
+			accentColor: org.accent_color
+		});
+	}
 </script>
 
 <Navigation />

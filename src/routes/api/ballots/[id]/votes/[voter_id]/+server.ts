@@ -14,8 +14,8 @@ const bodySchema = z.object({
 export const PATCH: RequestHandler = async (event) => {
 	try {
 		return await withAuth(event, async (event, user) => {
-			const ballotId = event.params.id;
-			const voterId = event.params.voter_id;
+			const ballotId = event.params.id!;
+			const voterId = event.params.voter_id!;
 
 			const ballot = await BallotService.getBallot(ballotId, user.id);
 			if (!ballot) return json({ error: 'Ballot not found' }, { status: 404 });

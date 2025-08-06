@@ -10,10 +10,11 @@ const createVoterListSchema = z.object({
 	name: z.string().min(1, 'Name is required').max(255, 'Name too long'),
 	description: z.string().optional(),
 	voterEmails: z
-		.transform((v) => {
-			const r = Array.isArray(v) ? v.flatMap((e) => e.split(/\s|,|;|\n/)) : v.split(/\s|,|;|\n/);
-			console.log({ r });
-			return r;
+		.transform((v: unknown) => {
+			const raw = Array.isArray(v)
+				? v.flatMap((e) => String(e).split(/\s|,|;|\n/))
+				: String(v).split(/\s|,|;|\n/);
+			return raw.filter((s) => s.trim().length > 0);
 		})
 		.pipe(z.email().array().min(1, 'At least one voter email is required'))
 });

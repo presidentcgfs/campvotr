@@ -29,14 +29,7 @@
 	let ballotId = '';
 
 	async function fetchAdminVotes() {
-		const s = $session;
-		// if (!s) {
-		// 	goto('/auth');
-		// 	return;
-		// }
-		const res = await fetch(`/api/ballots/${ballotId}/votes`, {
-			headers: { Authorization: `Bearer ${s.access_token}` }
-		});
+		const res = await fetch(`/api/ballots/${ballotId}/votes`);
 		if (res.status === 403) {
 			goto('/auth');
 			return;

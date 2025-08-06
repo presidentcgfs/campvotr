@@ -1,17 +1,19 @@
 import { db, ballots, votes, notifications, voteEvents } from './index';
 import { voters, voterListMembers, ballotVoters } from './schema';
-import { eq, and, desc, sql, count, or, inArray } from 'drizzle-orm';
+import { eq, and, desc, sql, count, or } from 'drizzle-orm';
 import type { VoteChoice, BallotStatus, VoteCounts } from '../types';
 import { emailService } from '$lib/server/email.svelte';
 
 function canAccessQuery(userId: string) {
 	return or(eq(ballotVoters.voter_id, userId), eq(ballots.creator_id, userId));
 }
+
 export class BallotService {
 	static async createBallot(data: {
 		title: string;
 		description: string;
 		creator_id: string;
+		organization_id: string;
 		voting_opens_at: Date;
 		voting_closes_at: Date;
 		voting_threshold?: 'simple_majority' | 'supermajority' | 'unanimous' | 'custom';
@@ -27,6 +29,7 @@ export class BallotService {
 				title: data.title,
 				description: data.description,
 				creator_id: data.creator_id,
+				organization_id: data.organization_id,
 				voting_opens_at: data.voting_opens_at,
 				voting_closes_at: data.voting_closes_at,
 				voting_threshold: data.voting_threshold || 'simple_majority',
@@ -75,18 +78,19 @@ export class BallotService {
 		return ballot;
 	}
 
-	static async getBallots(userId: string) {
-		// Get ballots where user is eligible to vote
-		// Either through voter list membership or direct ballot voter assignment
-
+	static async getBallots(userId: string, organizationId?: string) {
+		// Return ballots the user created or is assigned to vote on, optionally scoped to organization
 		const eligibleBallots = await db
 			.selectDistinctOn([ballots.id, ballots.created_at])
 			.from(ballots)
-
 			.leftJoin(ballotVoters, and(eq(ballots.id, ballotVoters.ballot_id)))
-			.where(canAccessQuery(userId))
+			.where(
+				and(
+					or(eq(ballotVoters.voter_id, userId), eq(ballots.creator_id, userId)),
+					organizationId ? eq(ballots.organization_id, organizationId) : sql`true`
+				)
+			)
 			.orderBy(desc(ballots.created_at));
-
 		return eligibleBallots.flatMap((v) => v.ballots);
 	}
 
