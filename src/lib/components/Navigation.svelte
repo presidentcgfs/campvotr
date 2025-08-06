@@ -3,18 +3,6 @@
 	import { goto } from '$app/navigation';
 	import { AuthService } from '$lib/auth';
 	import { browser } from '$app/environment';
-	import OrganizationSwitcher from '$lib/components/OrganizationSwitcher.svelte';
-	async function fetchOrgs() {
-		const res = await fetch('/api/organizations');
-		if (!res.ok) return [];
-		const data = await res.json();
-		return data.organizations ?? [];
-	}
-	function onSwitch(slug: string) {
-		const url = new URL(window.location.href);
-		url.searchParams.set('org', slug);
-		window.location.href = url.toString();
-	}
 
 	let user = $state(page.data.user);
 	if (browser) {
@@ -45,7 +33,6 @@
 				<a href="/ballots" class="nav-link" class:active={page.url.pathname.startsWith('/ballots')}>
 					Ballots
 				</a>
-				<OrganizationSwitcher fetchOrganizations={fetchOrgs} {onSwitch} />
 
 				<a
 					href="/voter-lists"
