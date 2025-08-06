@@ -15,11 +15,11 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (!cronSecret || !secret || secret !== cronSecret) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
-	console.log(`chron request`);
 	const openReminderMinutes = Number(env.OPEN_REMINDER_MINUTES ?? '15');
 	const closeReminderMinutes = Number(env.CLOSE_REMINDER_MINUTES ?? '15');
 	const batchSize = Number(env.BATCH_SIZE ?? '50');
 	const dryRun = parseBool(env.DRY_RUN, false);
+	console.log(`cron request`, { openReminderMinutes, closeReminderMinutes, batchSize, dryRun });
 
 	const result = await BallotCron.tick({
 		openReminderMinutes: Number.isFinite(openReminderMinutes) ? openReminderMinutes : 15,
@@ -27,7 +27,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		batchSize: Number.isFinite(batchSize) ? batchSize : 50,
 		dryRun
 	});
-
+	console.log('cron result', result);
 	return json({ ok: true, ...result });
 };
 
