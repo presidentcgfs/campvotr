@@ -29,6 +29,10 @@
 	$: canOpenVoting = isDraft && isCreator;
 	$: console.log({ ballot });
 
+	$: votingOpensAt = '';
+	$: votingClosesAt = '';
+	$: sendNotifications = true;
+
 	onMount(async () => {
 		if (!ballotId) {
 			goto('/ballots');
@@ -310,25 +314,31 @@
 		id="open-voting-form"
 		on:submit|preventDefault={(e) => {
 			const form = e.currentTarget as HTMLFormElement;
-			const opens = (form.querySelector('#voting-opens') as HTMLInputElement).value;
-			const closes = (form.querySelector('#voting-closes') as HTMLInputElement).value;
-			const notify = (form.querySelector('#send-notifications') as HTMLInputElement).checked;
-			handleOpenVoting({ votingOpensAt: opens, votingClosesAt: closes, sendNotifications: notify });
+			// const opens = (form.querySelector('#voting-opens') as HTMLInputElement).value;
+			// const closes = (form.querySelector('#voting-closes') as HTMLInputElement).value;
+			// const notify = (form.querySelector('#send-notifications') as HTMLInputElement).checked;
+			handleOpenVoting({ votingOpensAt, votingClosesAt, sendNotifications });
 		}}
 	>
 		<div class="form-group">
 			<label for="voting-opens">Voting Opens *</label>
-			<input id="voting-opens" type="datetime-local" required data-autofocus />
+			<input
+				id="voting-opens"
+				bind:value={votingOpensAt}
+				type="datetime-local"
+				required
+				data-autofocus
+			/>
 			<small class="form-help">When voters can start casting their votes</small>
 		</div>
 		<div class="form-group">
 			<label for="voting-closes">Voting Closes *</label>
-			<input id="voting-closes" type="datetime-local" required />
+			<input id="voting-closes" bind:value={votingClosesAt} type="datetime-local" required />
 			<small class="form-help">When voting will automatically close</small>
 		</div>
 		<div class="form-group">
 			<label class="checkbox-label">
-				<input id="send-notifications" type="checkbox" checked />
+				<input id="send-notifications" bind:checked={sendNotifications} type="checkbox" />
 				<span class="checkbox-text">Send notification to voters</span>
 			</label>
 			<small class="form-help"
@@ -444,59 +454,6 @@
 		line-height: 1.5;
 	}
 
-	.vote-results {
-		background: white;
-		padding: 2rem;
-		border-radius: 8px;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-		margin-bottom: 2rem;
-	}
-
-	.vote-results h3 {
-		margin-top: 0;
-		margin-bottom: 1.5rem;
-		color: #333;
-	}
-
-	.vote-counts {
-		display: flex;
-		gap: 2rem;
-		justify-content: center;
-		flex-wrap: wrap;
-	}
-
-	.vote-count {
-		text-align: center;
-		min-width: 80px;
-	}
-
-	.vote-count .count {
-		font-size: 2rem;
-		font-weight: bold;
-		display: block;
-		margin-bottom: 0.5rem;
-	}
-
-	.vote-count .label {
-		font-size: 0.9rem;
-		color: #666;
-		text-transform: uppercase;
-		font-weight: 500;
-	}
-
-	.vote-count.yea .count {
-		color: #28a745;
-	}
-	.vote-count.nay .count {
-		color: #dc3545;
-	}
-	.vote-count.abstain .count {
-		color: #ffc107;
-	}
-	.vote-count.total .count {
-		color: #007bff;
-	}
-
 	.voting-section,
 	.voting-info {
 		background: white;
@@ -524,76 +481,6 @@
 		margin-bottom: 1rem;
 		color: #1976d2;
 	}
-
-	.vote-buttons {
-		display: flex;
-		gap: 1rem;
-		justify-content: center;
-		flex-wrap: wrap;
-	}
-
-	.vote-btn {
-		padding: 1rem 2rem;
-		border: 2px solid;
-		border-radius: 8px;
-		font-size: 1.1rem;
-		font-weight: 500;
-		cursor: pointer;
-		transition: all 0.2s;
-		background: white;
-		min-width: 120px;
-	}
-
-	.vote-btn:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
-	}
-
-	.vote-btn-yea {
-		border-color: #28a745;
-		color: #28a745;
-	}
-
-	.vote-btn-yea:hover:not(:disabled) {
-		background: #28a745;
-		color: white;
-	}
-
-	.vote-btn-yea.active {
-		background: #28a745;
-		color: white;
-	}
-
-	.vote-btn-nay {
-		border-color: #dc3545;
-		color: #dc3545;
-	}
-
-	.vote-btn-nay:hover:not(:disabled) {
-		background: #dc3545;
-		color: white;
-	}
-
-	.vote-btn-nay.active {
-		background: #dc3545;
-		color: white;
-	}
-
-	.vote-btn-abstain {
-		border-color: #ffc107;
-		color: #856404;
-	}
-
-	.vote-btn-abstain:hover:not(:disabled) {
-		background: #ffc107;
-		color: #856404;
-	}
-
-	.vote-btn-abstain.active {
-		background: #ffc107;
-		color: #856404;
-	}
-
 	.actions {
 		text-align: center;
 		margin-top: 2rem;
@@ -602,20 +489,6 @@
 	@media (max-width: 768px) {
 		.ballot-header {
 			flex-direction: column;
-		}
-
-		.vote-counts {
-			gap: 1rem;
-		}
-
-		.vote-buttons {
-			flex-direction: column;
-			align-items: center;
-		}
-
-		.vote-btn {
-			width: 100%;
-			max-width: 200px;
 		}
 	}
 	.radio-option {

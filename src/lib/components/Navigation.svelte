@@ -48,7 +48,7 @@
 				</a>
 				<div class="user-menu">
 					<span class="user-email">{user.email}</span>
-					<button on:click={handleSignOut} class="sign-out-btn"> Sign Out </button>
+					<button onclick={handleSignOut} class="sign-out-btn"> Sign Out </button>
 				</div>
 			{:else}
 				<a href="/auth" class="nav-link">Sign In</a>

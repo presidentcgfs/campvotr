@@ -2,8 +2,6 @@
 	import SvelteMarkdown from 'svelte-marked';
 
 	export let content: string = '';
-	let clazz: string = '';
-	export { clazz as class };
 </script>
 
 <SvelteMarkdown source={content} />
