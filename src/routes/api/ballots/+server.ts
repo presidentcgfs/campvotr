@@ -6,8 +6,9 @@ import { createBallotSchema } from '$lib/validation';
 import { EmailService } from '$lib/server/email';
 
 export const GET: RequestHandler = async (event) =>
-	withAuth(event, async (_, user) => {
-		const ballots = await BallotService.getBallots(user.id);
+	withAuth(event, async (event, user) => {
+		const orgId = (event.locals as any).organizationContext?.organization?.id;
+		const ballots = await BallotService.getBallots(user.id, orgId);
 		return json({ ballots });
 	});
 
@@ -16,9 +17,12 @@ export const POST: RequestHandler = async (event) => {
 		return await withAuth(event, async (event, user) => {
 			const body = await event.request.json();
 			const validatedData = createBallotSchema.parse(body);
+			const orgId = (event.locals as any).organizationContext?.organization?.id;
+			if (!orgId) return json({ error: 'Organization context required' }, { status: 400 });
 			const ballot = await BallotService.createBallot({
 				...validatedData,
 				creator_id: user.id,
+				organization_id: orgId,
 				voting_opens_at: new Date(validatedData.voting_opens_at),
 				voting_closes_at: new Date(validatedData.voting_closes_at),
 				voting_threshold: validatedData.voting_threshold,

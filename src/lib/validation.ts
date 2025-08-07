@@ -90,3 +90,7 @@ export const openVotingSchema = z
 		message: 'Voting open time cannot be in the past',
 		path: ['voting_opens_at']
 	});
+
+export const orgRolesEnum = z.enum(['OWNER', 'ADMIN', 'EDITOR', 'MEMBER', 'VIEWER']);
+
+export type OrgRole = z.infer<typeof orgRolesEnum>;

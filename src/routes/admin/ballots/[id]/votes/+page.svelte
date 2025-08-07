@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { session } from '$lib/stores/auth';
 	import { goto } from '$app/navigation';
-	import Modal from '../../../../../components/Modal.svelte';
+	import Modal from '$lib/components/Modal.svelte';
 
 	type Vote = {
 		id: string;
@@ -29,14 +29,7 @@
 	let ballotId = '';
 
 	async function fetchAdminVotes() {
-		const s = $session;
-		// if (!s) {
-		// 	goto('/auth');
-		// 	return;
-		// }
-		const res = await fetch(`/api/ballots/${ballotId}/votes`, {
-			headers: { Authorization: `Bearer ${s.access_token}` }
-		});
+		const res = await fetch(`/api/ballots/${ballotId}/votes`);
 		if (res.status === 403) {
 			goto('/auth');
 			return;

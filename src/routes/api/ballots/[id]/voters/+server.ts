@@ -126,16 +126,10 @@ export const POST: RequestHandler = (event) =>
 	});
 
 // DELETE /api/ballots/[id]/voters - Remove a voter from a ballot
-export const DELETE: RequestHandler = async ({ params, request, url }) => {
-	try {
-		const user = await authenticateUser(request);
-		if (!user) {
-			return json({ error: 'Unauthorized' }, { status: 401 });
-		}
-
-		const ballotId = params.id;
+export const DELETE: RequestHandler = async (event) =>
+	withAuth(event, async ({ params, url }, user) => {
+		const { id: ballotId } = idSchema.parse(params);
 		const voterId = url.searchParams.get('voter_id');
-
 		if (!voterId) {
 			return json({ error: 'voter_id parameter is required' }, { status: 400 });
 		}
@@ -157,8 +151,4 @@ export const DELETE: RequestHandler = async ({ params, request, url }) => {
 			.where(and(eq(ballotVoters.ballot_id, ballotId), eq(ballotVoters.voter_id, voterId)));
 
 		return json({ message: 'Voter removed from ballot successfully' });
-	} catch (error) {
-		console.error('Error removing voter from ballot:', error);
-		return json({ error: 'Internal server error' }, { status: 500 });
-	}
-};
+	});

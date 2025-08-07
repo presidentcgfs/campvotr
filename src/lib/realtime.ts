@@ -73,11 +73,7 @@ export class RealtimeVoteTracker {
 	// Method to manually refresh data (fallback)
 	async refreshData() {
 		try {
-			const response = await fetch(`/api/ballots/${this.ballotId}`, {
-				headers: {
-					Authorization: `Bearer ${this.accessToken}`
-				}
-			});
+			const response = await fetch(`/api/ballots/${this.ballotId}`);
 
 			if (response.ok) {
 				const result = await response.json();

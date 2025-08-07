@@ -25,15 +25,16 @@ export const GET: RequestHandler = (event) =>
 		const searchQuery = url.searchParams.get('search');
 		const limit = parseInt(url.searchParams.get('limit') || '50');
 
-		let query = db.select().from(voters);
-
-		if (searchQuery) {
-			query = query.where(
-				or(ilike(voters.email, `%${searchQuery}%`), ilike(voters.name, `%${searchQuery}%`))
-			);
-		}
-
-		const voterResults = await query.limit(limit).orderBy(voters.created_at);
+		const base = db.select().from(voters);
+		const voterResults = await (
+			searchQuery
+				? base.where(
+						or(ilike(voters.email, `%${searchQuery}%`), ilike(voters.name, `%${searchQuery}%`))
+					)
+				: base
+		)
+			.limit(limit)
+			.orderBy(voters.created_at);
 
 		return json({ voters: voterResults });
 	});

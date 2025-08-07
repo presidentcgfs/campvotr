@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { AuthService } from '$lib/auth';
 	import { browser } from '$app/environment';
+
 	let user = $state(page.data.user);
 	if (browser) {
 		AuthService.onAuthStateChange((currentUser) => {
@@ -32,6 +33,7 @@
 				<a href="/ballots" class="nav-link" class:active={page.url.pathname.startsWith('/ballots')}>
 					Ballots
 				</a>
+
 				<a
 					href="/voter-lists"
 					class="nav-link"
@@ -45,6 +47,13 @@
 					class:active={page.url.pathname === '/notifications'}
 				>
 					Notifications
+				</a>
+				<a
+					href="/settings"
+					class="nav-link"
+					class:active={page.url.pathname.startsWith('/settings')}
+				>
+					Settings
 				</a>
 				<div class="user-menu">
 					<span class="user-email">{user.email}</span>

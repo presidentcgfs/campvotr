@@ -72,6 +72,39 @@ export class EmailService {
 		}
 	}
 
+	async sendOrganizationInviteEmail(data: {
+		recipientEmail: string;
+		organizationName: string;
+		role: 'OWNER' | 'ADMIN' | 'EDITOR' | 'MEMBER' | 'VIEWER';
+	}): Promise<boolean> {
+		if (!this.resend) {
+			console.warn('Email service not configured - RESEND_API_KEY missing');
+			return false;
+		}
+		try {
+			const subject = `You have been invited to join ${data.organizationName} on CampVotr`;
+			const signupUrl = `${this.url}/auth`;
+			const html = `<!DOCTYPE html><html><body>
+				<p>Hello,</p>
+				<p>You have been invited to join <strong>${data.organizationName}</strong> as <strong>${data.role}</strong> on CampVotr.</p>
+				<p>If you don’t have an account yet, please <a href="${signupUrl}">create one here</a> using this email address (${data.recipientEmail}).</p>
+				<p>After signing in, your access will be activated automatically.</p>
+			</body></html>`;
+			const text = `You have been invited to join ${data.organizationName} as ${data.role} on CampVotr. Create an account here: ${signupUrl} using ${data.recipientEmail}. After signing in, your access will be activated automatically.`;
+			const result = await this.resend.emails.send({
+				from: this.fromEmail,
+				to: data.recipientEmail,
+				subject,
+				html,
+				text
+			});
+			return !!result.data;
+		} catch (error) {
+			console.error('Failed to send organization invite email:', error);
+			return false;
+		}
+	}
+
 	private static getThresholdLabel(threshold: string, customPercentage?: number): string {
 		switch (threshold) {
 			case 'simple_majority':

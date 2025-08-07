@@ -7,7 +7,7 @@
 	import { formatDateTime } from '$lib/utils/date';
 	import VotingProgress from '$lib/components/VotingProgress.svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
-	import Modal from '../../../components/Modal.svelte';
+	import Modal from '$lib/components/Modal.svelte';
 	// import OpenVotingModal from '$lib/components/OpenVotingModal.svelte';
 
 	let ballot: BallotWithVotes | null = null;

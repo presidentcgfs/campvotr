@@ -6,7 +6,7 @@ export class NotificationManager {
 	// Create notification when a new ballot is created
 	static async notifyNewBallot(ballotId: string, creatorId: string) {
 		try {
-			const ballot = await BallotService.getBallot(ballotId);
+			const ballot = await BallotService.getBallot(ballotId, creatorId);
 			if (!ballot) return;
 
 			// For now, we'll just create a notification for the creator
@@ -57,7 +57,7 @@ export class NotificationManager {
 	// Notify when voting has closed
 	static async notifyVotingClosed(ballotId: string) {
 		try {
-			const ballot = await BallotService.getBallot(ballotId);
+			const ballot = await BallotService.getBallot(ballotId, '');
 			if (!ballot) return;
 
 			const voteCounts = await BallotService.getVoteCounts(ballotId);

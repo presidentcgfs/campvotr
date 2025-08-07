@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Theme variables with sensible defaults */
+:root {
+	--color-primary: #2563eb; /* default blue */
+	--color-secondary: #64748b; /* slate */
+	--color-accent: #22c55e; /* green */
+	--button-bg: var(--color-primary);
+	--button-text: #ffffff;
+	--link-color: var(--color-primary);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--button-text: #ffffff;
+	}
+}
+
 /* CampVotr Global Styles */
 
 /* Reset and base styles */
