@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Modal from '../../components/Modal.svelte';
+	import { type OrgRole } from '$lib/validation';
+	import { z } from 'zod';
 
 	export let organization: { id: string; slug: string; name: string };
-	export let role: 'OWNER' | 'ADMIN' | 'EDITOR' | 'MEMBER' | 'VIEWER' | null;
-
-	type OrgRole = 'OWNER' | 'ADMIN' | 'EDITOR' | 'MEMBER' | 'VIEWER';
+	export let role: OrgRole | null;
 
 	let loading = true;
 	let error = '';

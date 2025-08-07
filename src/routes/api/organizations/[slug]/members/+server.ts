@@ -3,29 +3,29 @@ import type { RequestHandler } from './$types';
 import { z } from 'zod';
 import { db } from '$lib/db';
 import { organizationMemberships, organizations, organizationInvites } from '$lib/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { requireOrgRoleForSlug } from '$lib/server/org';
 import { rateLimit } from '$lib/server/rate-limit';
 import { supabaseAdmin } from '$lib/server/auth';
 import { emailService } from '$lib/server/email.svelte';
 import { authUsers } from 'drizzle-orm/supabase';
+import { orgRolesEnum } from '$lib/validation';
+import { requireOrgMembershipForSlug } from '$lib/server/org';
 
 const addMemberSchema = z.union([
 	z.object({
-		userId: z.string().uuid(),
-		role: z.enum(['OWNER', 'ADMIN', 'EDITOR', 'MEMBER', 'VIEWER']).default('MEMBER')
+		userId: z.uuid(),
+		role: orgRolesEnum.default('MEMBER')
 	}),
 	z.object({
-		email: z.string().email(),
-		role: z.enum(['OWNER', 'ADMIN', 'EDITOR', 'MEMBER', 'VIEWER']).default('MEMBER')
+		email: z.email(),
+		role: orgRolesEnum
 	})
 ]);
-const roleSchema = z.object({ role: z.enum(['OWNER', 'ADMIN', 'EDITOR', 'MEMBER', 'VIEWER']) });
 
 export const GET: RequestHandler = async (event) => {
 	const slug = event.params.slug!;
 	// Allow any member to view the list (read-only for non-admins)
-	const { requireOrgMembershipForSlug } = await import('$lib/server/org');
 	await requireOrgMembershipForSlug(event, slug);
 	const [org] = await db.select().from(organizations).where(eq(organizations.slug, slug)).limit(1);
 	if (!org) return json({ error: 'Not found' }, { status: 404 });

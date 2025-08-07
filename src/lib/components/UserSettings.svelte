@@ -139,14 +139,9 @@
 				({$page.data.organizationContext.organization.slug})
 			</p>
 		{/if}
-
-		<div class="card" style="margin-bottom:1rem">
-			<UserNameForm />
-		</div>
-		<div class="card" style="margin-bottom:1rem">
-			<UserAvatarForm />
-		</div>
 	</header>
+	<UserNameForm />
+	<UserAvatarForm />
 
 	{#if loading}
 		<div class="card loading">Loading organizations…</div>
