@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Modal from '../../components/Modal.svelte';
+	import Modal from './Modal.svelte';
 	import { type OrgRole } from '$lib/validation';
 	import { z } from 'zod';
 

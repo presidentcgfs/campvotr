@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { session } from '$lib/stores/auth';
 	import { goto } from '$app/navigation';
-	import Modal from '../../../../../components/Modal.svelte';
+	import Modal from '$lib/components/Modal.svelte';
 
 	type Vote = {
 		id: string;

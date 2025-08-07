@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
-	import Modal from '../../components/Modal.svelte';
+	import Modal from '$lib/components/Modal.svelte';
 	import MarkdownInput from '$lib/components/MarkdownInput.svelte';
 
 	interface VoterList {

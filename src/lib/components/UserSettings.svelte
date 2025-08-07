@@ -4,7 +4,7 @@
 	import OrganizationSettings from '$lib/components/OrganizationSettings.svelte';
 	import UserNameForm from '$lib/components/UserNameForm.svelte';
 	import UserAvatarForm from '$lib/components/UserAvatarForm.svelte';
-	import Modal from '../../components/Modal.svelte';
+	import Modal from '$lib/components/Modal.svelte';
 
 	type Org = {
 		id: string;
