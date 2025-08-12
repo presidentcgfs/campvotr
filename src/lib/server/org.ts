@@ -92,9 +92,20 @@ export async function resolveOrganizationContext(
 		const normalized = host.startsWith('www.') ? host.slice(4) : host;
 		org = await fetchOrganizationByDomain(normalized);
 	}
+	const user = (event as any).locals?.user;
+
+	if (!org && user) {
+		org = (
+			await db
+				.select()
+				.from(organizationMemberships)
+				.leftJoin(organizations, eq(organizationMemberships.organization_id, organizations.id))
+				.where(eq(organizationMemberships.user_id, user.id))
+				.limit(1)
+		)?.[0]?.organizations;
+	}
 	if (!org) return null;
 
-	const user = (event as any).locals?.user;
 	let role: OrgRole | null = null;
 	if (user) {
 		const m = await fetchMembership(user.id, org.id);

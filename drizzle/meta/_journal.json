@@ -22,6 +22,20 @@
       "when": 1754516601743,
       "tag": "0002_mature_micromacro",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1754588910938,
+      "tag": "0003_oval_raider",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1754590865024,
+      "tag": "0004_overrated_prism",
+      "breakpoints": true
     }
   ]
 }

@@ -51,11 +51,13 @@
 			<div
 				class="status-badge"
 				class:passing={passingStatus.is_passing}
-				class:failing={!passingStatus.is_passing}
+				class:failing={!passingStatus.is_passing && passingStatus.is_over}
 			>
 				{passingStatus.is_passing
 					? '✓ PASSING'
-					: `✗ FAILING${failureReason ? ': ' + failureReason : ''}`}
+					: passingStatus.is_over
+						? `✗ FAILING${failureReason ? ': ' + failureReason : ''}`
+						: ''}
 			</div>
 			<div class="threshold-info">
 				<strong>Threshold:</strong>
@@ -103,7 +105,7 @@
 				</div>
 				<div class="detail-item">
 					<span class="detail-label">Still Needed:</span>
-					<span class="detail-value">{passingStatus.votes_needed} more "Yes" votes</span>
+					<span class="detail-value">{passingStatus.votes_needed} more votes</span>
 				</div>
 				{#if passingStatus.quorum_required}
 					<div class="detail-item">

@@ -23,14 +23,17 @@ export const GET: RequestHandler = async (event) =>
 		});
 	});
 
+const updateUserSchema = z.object({
+	name: nameSchema
+});
+
 export const PATCH: RequestHandler = async (event) =>
 	withAuth(event, async (_evt, user) => {
 		try {
-			const body = await event.request.json();
-			const parsed = nameSchema.parse((body?.name ?? '').toString());
+			const parsed = updateUserSchema.parse(await event.request.json());
 			// Update Supabase auth user metadata with the new name
 			const { data, error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
-				user_metadata: { ...(user.user_metadata || {}), name: parsed }
+				user_metadata: { ...(user.user_metadata || {}), ...parsed }
 			});
 			if (error) return json({ error: 'Failed to update name' }, { status: 500 });
 			return json({

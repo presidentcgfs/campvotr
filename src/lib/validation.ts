@@ -30,7 +30,14 @@ export const createBallotSchema = z
 			.optional(),
 		voter_list_id: z.uuid().optional(),
 		voter_emails: z.array(z.email('Invalid email')).optional(),
-		google_group_id: z.uuid().optional()
+		google_group_id: z.uuid().optional(),
+		// Optional: save recipients as a voter list
+		save_voter_list: z.boolean().optional().default(false),
+		voter_list_name: z.string().max(255, 'Name too long').optional(),
+		voter_list_description: z
+			.string()
+			.max(200, 'Description must be 200 characters or fewer')
+			.optional()
 	})
 	.refine((data) => new Date(data.voting_closes_at) > new Date(data.voting_opens_at), {
 		message: 'Voting close time must be after open time',
@@ -43,7 +50,7 @@ export const createBallotSchema = z
 			(data.voter_emails && data.voter_emails.length > 0),
 		{
 			message: 'Either voter list, Google Group, or individual voter emails must be provided',
-			path: ['voter_list_id']
+			path: ['voter_emails']
 		}
 	)
 	.refine(
@@ -57,6 +64,11 @@ export const createBallotSchema = z
 			message: 'Custom threshold percentage is required when using custom threshold',
 			path: ['threshold_percentage']
 		}
+	)
+	.refine(
+		(data) =>
+			!data.save_voter_list || (data.voter_list_name && data.voter_list_name.trim().length > 0),
+		{ message: 'List name is required when saving as a voter list', path: ['voter_list_name'] }
 	);
 
 export const castVoteSchema = z.object({
@@ -77,18 +89,19 @@ export const updateBallotStatusSchema = z.object({
 
 export const openVotingSchema = z
 	.object({
-		action: z.literal('open_voting'),
 		voting_opens_at: datetime,
 		voting_closes_at: datetime,
-		send_notifications: z.boolean().optional().default(true)
+		send_notifications: z.transform((v) =>
+			['false', 'true', 'on'].includes(v + ''.toLocaleLowerCase())
+		)
 	})
 	.refine((data) => new Date(data.voting_closes_at) > new Date(data.voting_opens_at), {
 		message: 'Voting close time must be after open time',
 		path: ['voting_closes_at']
 	})
-	.refine((data) => new Date(data.voting_opens_at) >= new Date(), {
-		message: 'Voting open time cannot be in the past',
-		path: ['voting_opens_at']
+	.refine((data) => new Date(data.voting_closes_at) >= new Date(), {
+		message: 'Voting close time cannot be in the past',
+		path: ['voting_closes_at']
 	});
 
 export const orgRolesEnum = z.enum(['OWNER', 'ADMIN', 'EDITOR', 'MEMBER', 'VIEWER']);

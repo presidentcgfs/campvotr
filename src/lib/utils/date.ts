@@ -41,3 +41,13 @@ export function formatDate(date: Date): string {
 export function formatTime(date: Date): string {
 	return date.toLocaleTimeString();
 }
+
+const MINUTE = 60_000;
+
+// Format date as YYYY-MM-DD local
+export function formatISOLocal(d = new Date()) {
+	return new Date(d.getTime() - d.getTimezoneOffset() * MINUTE).toISOString().slice(0, 16);
+}
+export function tomorrow() {
+	return new Date(Date.now() + 24 * 60 * MINUTE);
+}

@@ -7,8 +7,8 @@
 
 	$: isOpen = ballot.status === 'open';
 	$: isClosed = ballot.status === 'closed';
-	$: votingEnded = new Date() > new Date(ballot.voting_closes_at);
-	$: votingStarted = new Date() >= new Date(ballot.voting_opens_at);
+	$: votingEnded = Date.now() > new Date(ballot.voting_closes_at).getTime();
+	$: votingStarted = Date.now() >= new Date(ballot.voting_opens_at).getTime();
 
 	function getStatusColor(status: string) {
 		switch (status) {

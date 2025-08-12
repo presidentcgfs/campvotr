@@ -1,8 +1,17 @@
-import { db, ballots, votes, notifications, voteEvents } from './index';
+import {
+	db,
+	ballots,
+	votes,
+	notifications,
+	voteEvents,
+	organizations,
+	tieBreakerVotes
+} from './index';
 import { voters, voterListMembers, ballotVoters } from './schema';
 import { eq, and, desc, sql, count, or } from 'drizzle-orm';
 import type { VoteChoice, BallotStatus, VoteCounts } from '../types';
 import { emailService } from '$lib/server/email.svelte';
+import { authUsers } from 'drizzle-orm/supabase';
 
 function canAccessQuery(userId: string) {
 	return or(eq(ballotVoters.voter_id, userId), eq(ballots.creator_id, userId));
@@ -84,9 +93,11 @@ export class BallotService {
 			.selectDistinctOn([ballots.id, ballots.created_at])
 			.from(ballots)
 			.leftJoin(ballotVoters, and(eq(ballots.id, ballotVoters.ballot_id)))
+			.leftJoin(voters, eq(ballotVoters.voter_id, voters.id))
+			.leftJoin(authUsers, eq(voters.email, authUsers.email))
 			.where(
 				and(
-					or(eq(ballotVoters.voter_id, userId), eq(ballots.creator_id, userId)),
+					or(eq(voters.user_id, userId), eq(ballots.creator_id, userId), eq(authUsers.id, userId)),
 					organizationId ? eq(ballots.organization_id, organizationId) : sql`true`
 				)
 			)
@@ -95,13 +106,22 @@ export class BallotService {
 	}
 
 	static async getBallot(id: string, userId: string) {
-		const [ballot] = await db
-			.select()
-			.from(ballots)
-			.leftJoin(ballotVoters, and(eq(ballots.id, ballotVoters.ballot_id)))
-			.where(canAccessQuery(userId))
-			.limit(1);
+		//ugly figure
 
+		const ballotQuery = db
+			.selectDistinctOn([ballots.id])
+			.from(ballots)
+			.leftJoin(ballotVoters, eq(ballots.id, ballotVoters.ballot_id))
+			.leftJoin(voters, eq(ballotVoters.voter_id, voters.id))
+			.leftJoin(authUsers, eq(voters.email, authUsers.email))
+			.where(
+				and(
+					eq(ballots.id, id),
+					or(eq(ballots.creator_id, userId), eq(voters.user_id, userId), eq(authUsers.id, userId))
+				)
+			)
+			.limit(1);
+		const ballot = (await ballotQuery)[0]?.ballots;
 		if (!ballot) {
 			return null;
 		}
@@ -114,7 +134,7 @@ export class BallotService {
 		]);
 
 		return {
-			...ballot.ballots,
+			...ballot,
 			vote_counts: voteCounts,
 			user_vote: userVote,
 			votes: allVotes,
@@ -122,16 +142,7 @@ export class BallotService {
 		};
 	}
 
-	static async isUserEligibleForBallot(ballotId: string, userId: string): Promise<boolean> {
-		const [dv] = await db
-			.select()
-			.from(ballotVoters)
-			.where(and(eq(ballotVoters.ballot_id, ballotId), eq(ballotVoters.voter_id, userId)))
-			.limit(1);
-		return dv != null;
-	}
-
-	static async getVoteCounts(ballotId: string): Promise<VoteCounts> {
+	static async getRawVoteCounts(ballotId: string): Promise<VoteCounts> {
 		const result = await db
 			.select({
 				vote_choice: votes.vote_choice,
@@ -147,15 +158,109 @@ export class BallotService {
 				ret.total += row.count;
 				return ret;
 			},
-			{
-				yea: 0,
-				nay: 0,
-				abstain: 0,
-				total: 0
-			}
+			{ yea: 0, nay: 0, abstain: 0, total: 0 } as VoteCounts
 		);
 
 		return counts;
+	}
+
+	static async isUserEligibleForBallot(ballotId: string, userId: string): Promise<boolean> {
+		const [dv] = await db
+			.select()
+			.from(ballotVoters)
+			.where(and(eq(ballotVoters.ballot_id, ballotId), eq(ballotVoters.voter_id, userId)))
+			.limit(1);
+		return dv != null;
+	}
+
+	static async getVoteCounts(ballotId: string): Promise<VoteCounts> {
+		const counts = await this.getRawVoteCounts(ballotId);
+		// Also include tie-breaker vote if present
+		const [tb] = await db
+			.select()
+			.from(tieBreakerVotes)
+			.where(eq(tieBreakerVotes.ballot_id, ballotId))
+			.limit(1);
+		if (tb) {
+			(counts as any)[tb.vote_choice] += 1;
+			counts.total += 1;
+		}
+		return counts;
+	}
+
+	static async getEffectiveTieBreakerUserId(ballotId: string): Promise<string | null> {
+		// Fetch ballot and org to resolve effective tie-breaker
+		const [b] = await db.select().from(ballots).where(eq(ballots.id, ballotId));
+		if (!b) return null;
+		if (b.tie_breaker_user_id) return b.tie_breaker_user_id as any;
+		// Resolve from organization default
+		const [org] = await db
+			.select()
+			.from(organizations)
+			.where(eq(organizations.id, b.organization_id!));
+		return (org as any)?.tie_breaker_user_id ?? null;
+	}
+
+	static async calculateTieStatus(ballotId: string): Promise<{
+		isTie: boolean;
+		topChoice: VoteChoice | null;
+		topCount: number;
+		tiedChoices: VoteChoice[];
+		tieBreakerApplied: boolean;
+	}> {
+		const counts = await this.getRawVoteCounts(ballotId);
+		// Include tie-breaker vote if exists
+		const [tb] = await db
+			.select()
+			.from(tieBreakerVotes)
+			.where(eq(tieBreakerVotes.ballot_id, ballotId))
+			.limit(1);
+		if (tb) {
+			(counts as any)[tb.vote_choice] += 1;
+			counts.total += 1;
+		}
+		const entries: [VoteChoice, number][] = [
+			['yea', counts.yea],
+			['nay', counts.nay],
+			['abstain', counts.abstain]
+		];
+		entries.sort((a, b) => b[1] - a[1]);
+		const topCount = entries[0][1];
+		const tiedChoices = entries.filter((e) => e[1] === topCount).map((e) => e[0]);
+		return {
+			isTie: tiedChoices.length > 1,
+			topChoice: tiedChoices.length === 1 ? entries[0][0] : null,
+			topCount,
+			tiedChoices,
+			tieBreakerApplied: !!tb
+		};
+	}
+
+	static async recordTieBreakerVote(params: {
+		ballotId: string;
+		userId: string;
+		vote_choice: VoteChoice;
+		note?: string;
+		ip?: string;
+	}): Promise<void> {
+		// Ensure not already resolved
+		const [existing] = await db
+			.select()
+			.from(tieBreakerVotes)
+			.where(eq(tieBreakerVotes.ballot_id, params.ballotId))
+			.limit(1);
+		if (existing) throw new Error('Tie already resolved');
+		await db.insert(tieBreakerVotes).values({
+			ballot_id: params.ballotId,
+			user_id: params.userId,
+			vote_choice: params.vote_choice,
+			note: params.note ?? null,
+			ip_address: params.ip ?? null
+		});
+		await db
+			.update(ballots)
+			.set({ tie_break_resolved_at: new Date(), tie_break_resolution_note: params.note ?? null })
+			.where(eq(ballots.id, params.ballotId));
 	}
 
 	static async getBallotVotes(ballotId: string) {
@@ -207,7 +312,7 @@ export class BallotService {
 	}
 	static async sendVoterInvitations(ballotId: string) {
 		try {
-			const ballot = await this.getBallot(ballotId, '');
+			const [ballot] = await db.select().from(ballots).where(eq(ballots.id, ballotId)).limit(1);
 			// Get all voters for this ballot
 			const voters = await this.getBallotVoters(ballotId);
 
@@ -319,9 +424,10 @@ export class BallotService {
 		// A ballot passes if it meets both the voting threshold AND quorum (if required)
 		const meetsThreshold = voteCounts.yea >= requiredVotes;
 		const isPassing = meetsThreshold && quorumMet;
-
+		const isOver = Date.now() > new Date(ballot.voting_closes_at).getTime();
 		return {
 			is_passing: isPassing,
+			is_over: isOver,
 			votes_needed: Math.max(0, requiredVotes - voteCounts.yea),
 			required_votes: requiredVotes,
 			total_eligible_voters: totalEligibleVoters,
@@ -367,24 +473,57 @@ export class BallotService {
 }
 
 export class VoteService {
-	static async castVote(data: { ballot_id: string; user_id: string; vote_choice: VoteChoice }) {
-		// Get voter record for this user
-		const [userVoter] = await db
+	static async getVoterForUserId(userId: string) {
+		const [{ voters: voter } = {}] = await db
 			.select()
 			.from(voters)
-			.where(eq(voters.user_id, data.user_id))
+			.leftJoin(authUsers, eq(voters.email, authUsers.email))
+			.where(or(eq(voters.user_id, userId), eq(authUsers.id, userId)))
 			.limit(1);
+		return voter;
+	}
 
+	static async castVote(data: { ballot_id: string; user_id: string; vote_choice: VoteChoice }) {
+		// Get voter record for this user
+		const userVoter = await this.getVoterForUserId(data.user_id);
 		if (!userVoter) {
 			throw new Error('User is not registered as a voter');
 		}
 
 		// Check if user already voted
 		const existingVote = await BallotService.getUserVoteByVoterId(data.ballot_id, userVoter.id);
-
+		const ballot = await BallotService.getBallot(data.ballot_id, data.user_id);
+		if (!ballot) {
+			throw new Error('Ballot not found');
+		}
+		if (ballot.status === 'closed') {
+			throw new Error('Voting has ended');
+		}
+		if (ballot.status !== 'open') {
+			throw new Error('Voting has not started');
+		}
 		if (existingVote) {
-			// One-and-done: do not allow updates here; the API layer enforces 409
-			return existingVote;
+			// Create new vote
+			const [vote] = await db
+				.update(votes)
+				.set({
+					vote_choice: data.vote_choice
+				})
+				.where(eq(votes.id, existingVote.id))
+				.returning();
+
+			// Record audit event for user cast
+			await AdminVoteService.recordVoteEvent({
+				ballot_id: data.ballot_id,
+				voter_id: userVoter.id,
+				actor_user_id: data.user_id,
+				actor_role: 'user',
+				event_type: 'cast',
+				previous_choice: existingVote.vote_choice,
+				new_choice: data.vote_choice
+			});
+
+			return vote;
 		} else {
 			// Create new vote
 			const [vote] = await db

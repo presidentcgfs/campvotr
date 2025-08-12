@@ -44,6 +44,8 @@ export const organizations = pgTable('organizations', {
 	secondary_color: varchar('secondary_color', { length: 7 }).notNull().default('#64748b'),
 	accent_color: varchar('accent_color', { length: 7 }).notNull().default('#22c55e'),
 	primary_domain: varchar('primary_domain', { length: 255 }).unique(),
+	// Optional org-level tie-breaker designation (Supabase auth user id)
+	tie_breaker_user_id: uuid('tie_breaker_user_id'),
 
 	created_at: timestamp('created_at').defaultNow().notNull(),
 	updated_at: timestamp('updated_at').defaultNow().notNull()
@@ -134,7 +136,12 @@ export const ballots = pgTable('ballots', {
 	voting_threshold: votingThresholdEnum('voting_threshold').default('simple_majority').notNull(),
 	threshold_percentage: decimal('threshold_percentage', { precision: 5, scale: 2 }),
 	quorum_required: integer('quorum_required'),
-	status: ballotStatusEnum('status').default('draft').notNull()
+	status: ballotStatusEnum('status').default('draft').notNull(),
+	// Optional per-ballot override for tie-breaker (Supabase auth user id)
+	tie_breaker_user_id: uuid('tie_breaker_user_id'),
+	// Audit of tie-break resolution
+	tie_break_resolved_at: timestamp('tie_break_resolved_at'),
+	tie_break_resolution_note: text('tie_break_resolution_note')
 });
 
 export const ballotVoters = pgTable('ballot_voters', {
@@ -159,6 +166,7 @@ export const votes = pgTable(
 			.references(() => voters.id, { onDelete: 'cascade' })
 			.notNull(),
 		vote_choice: voteChoiceEnum('vote_choice').notNull(),
+
 		voted_at: timestamp('voted_at').defaultNow().notNull(),
 		updated_at: timestamp('updated_at').defaultNow().notNull()
 	},
@@ -183,6 +191,24 @@ export const voteEvents = pgTable('vote_events', {
 	reason: text('reason'),
 	created_at: timestamp('created_at').defaultNow().notNull()
 });
+
+export const tieBreakerVotes = pgTable(
+	'tie_breaker_votes',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		ballot_id: uuid('ballot_id')
+			.references(() => ballots.id, { onDelete: 'cascade' })
+			.notNull(),
+		user_id: uuid('user_id').notNull(),
+		vote_choice: voteChoiceEnum('vote_choice').notNull(),
+		note: text('note'),
+		ip_address: varchar('ip_address', { length: 64 }),
+		created_at: timestamp('created_at').defaultNow().notNull()
+	},
+	(table) => ({
+		uniqueBallot: uniqueIndex('tie_breaker_votes_ballot_unique').on(table.ballot_id)
+	})
+);
 
 export const notifications = pgTable('notifications', {
 	id: uuid('id').primaryKey().defaultRandom(),

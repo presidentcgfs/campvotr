@@ -45,6 +45,7 @@ export interface VoteCounts {
 
 export interface PassingStatus {
 	is_passing: boolean;
+	is_over: boolean;
 	votes_needed: number;
 	required_votes: number;
 	total_eligible_voters: number;

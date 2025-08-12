@@ -1,6 +1,7 @@
 import type { Handle } from '@sveltejs/kit';
 import { createSupabaseServer } from './supabase/server';
 import { dev } from '$app/environment';
+import { resolveOrganizationContext } from '$lib/server/org';
 
 export const handle: Handle = async ({ event, resolve }) => {
 	// Initialize Supabase SSR client attached to cookies
@@ -15,7 +16,6 @@ export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.user = session?.user ?? null;
 	// Resolve organization context for SSR
 	try {
-		const { resolveOrganizationContext } = await import('$lib/server/org');
 		(event as any).locals.organizationContext = await resolveOrganizationContext(event);
 	} catch (e) {
 		// org context is optional; ignore errors here

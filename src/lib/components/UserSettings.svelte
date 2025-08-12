@@ -5,6 +5,8 @@
 	import UserNameForm from '$lib/components/UserNameForm.svelte';
 	import UserAvatarForm from '$lib/components/UserAvatarForm.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import { goto } from '$app/navigation';
+	import Button from './Button.svelte';
 
 	type Org = {
 		id: string;
@@ -126,12 +128,19 @@
 		// When modal closes, refresh list to reflect any changes
 		refreshSelected();
 	}
-
+	async function handleSignOut() {
+		try {
+			await fetch('/api/auth/signout', { method: 'POST', body: new FormData() });
+			goto('/');
+		} catch (error) {
+			console.error('Sign out error:', error);
+		}
+	}
 	onMount(loadOrgs);
 </script>
 
 <section class="container">
-	<header class="mb-2">
+	<header class="mb-2 flex flex-1 justify-between">
 		<h1 class="mb-1">Settings</h1>
 		{#if $page.data.organizationContext}
 			<p>
@@ -139,6 +148,7 @@
 				({$page.data.organizationContext.organization.slug})
 			</p>
 		{/if}
+		<Button onclick={handleSignOut} variant="secondary">Sign Out</Button>
 	</header>
 	<UserNameForm />
 	<UserAvatarForm />

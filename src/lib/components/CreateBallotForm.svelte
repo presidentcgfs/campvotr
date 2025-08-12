@@ -3,13 +3,17 @@
 	import { session } from '$lib/stores/auth';
 	import type { Ballot } from '$lib/types';
 	import MarkdownInput from './MarkdownInput.svelte';
+	import { formatISOLocal, tomorrow } from '$lib/utils/date';
 
 	type BallotCreatedPayload = { ballot: Ballot };
 	type BallotCreatedHandler = (payload: BallotCreatedPayload) => void;
 	let { onCreated } = $props();
 	let title = $state('');
-	let votingOpensAt = $state('');
-	let votingClosesAt = $state('');
+	let votingOpensAt = $state(formatISOLocal());
+	let votingClosesAt = $state(formatISOLocal(tomorrow()));
+	$effect(() => {
+		console.log({ votingOpensAt, votingClosesAt });
+	});
 	let loading = $state(false);
 	let error = $state('');
 	let description = $state('');
@@ -27,13 +31,6 @@
 
 	// Quorum
 	let quorumRequired = $state('');
-
-	// Set default dates (opens now, closes in 24 hours)
-	const now = new Date();
-	const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-
-	votingOpensAt = now.toISOString().slice(0, 16);
-	votingClosesAt = tomorrow.toISOString().slice(0, 16);
 
 	onMount(async () => {
 		await loadVoterLists();
@@ -171,10 +168,7 @@
 		{#if loadingVoterLists}
 			<p class="loading-text">Loading voter lists...</p>
 		{:else if voterLists.length === 0}
-			<p class="no-lists">
-				No voter lists available.
-				<a href="/voter-lists" target="_blank">Create one first</a>
-			</p>
+			<p class="no-lists">No voter lists available yet.</p>
 		{:else}
 			<select id="voter-list" bind:value={selectedVoterListId} required>
 				<option value="">Select a voter list...</option>

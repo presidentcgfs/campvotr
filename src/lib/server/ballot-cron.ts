@@ -1,7 +1,8 @@
 import { db, ballots, notifications } from '$lib/db';
-import { and, asc, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, asc, between, eq, gte, inArray, lte } from 'drizzle-orm';
 import { BallotService } from '$lib/db/queries';
 import { emailService } from './email.svelte';
+import { batchToGenerator } from './batch';
 
 export type BallotRow = typeof ballots.$inferSelect;
 
@@ -10,7 +11,6 @@ export interface CronConfig {
 	closeReminderMinutes: number; // default 15
 	batchSize: number; // default 50
 	dryRun: boolean; // default false
-	maxIterations?: number; // safety cap (default 10)
 }
 
 interface Recipient {
@@ -80,7 +80,6 @@ export interface CronRunResult {
 export class BallotCron {
 	static async tick(config: CronConfig): Promise<CronRunResult> {
 		const now = new Date();
-		const maxIterations = config.maxIterations ?? 10;
 		const opened: string[] = [];
 		const closed: string[] = [];
 		const openReminders: { ballotId: string; count: number }[] = [];
@@ -90,64 +89,61 @@ export class BallotCron {
 
 		// 1) Open reminders (any status)
 		try {
-			await this.iterateBatches(maxIterations, async () => {
-				const toRemind = await db
+			for await (const b of batchToGenerator((offset, limit) => {
+				return db
 					.select()
 					.from(ballots)
 					.where(and(gte(ballots.voting_opens_at, now), lte(ballots.voting_closes_at, now)))
 					.orderBy(asc(ballots.voting_opens_at))
-					.limit(config.batchSize);
-				if (toRemind.length === 0) return false;
-
-				for (const b of toRemind) {
-					const key = buildIdempKey(b.id, 'open-reminder', new Date(b.voting_opens_at));
-					const recipients = await fetchRecipients(b.id);
-					const userIds = recipients.map((r) => r.keyUserId);
-					const sent = await alreadySentMap(userIds, b.id, key, 'voting_reminder');
-					let count = 0;
-					for (const r of recipients) {
-						if (sent.has(r.keyUserId)) {
-							skipped++;
-							continue;
-						}
-						const minutes = Math.max(
-							1,
-							Math.ceil((new Date(b.voting_opens_at).getTime() - now.getTime()) / 60_000)
-						);
-						const message = `Ballot opens in ${minutes} minute${minutes === 1 ? '' : 's'}`;
-						const withKey = withKeyMessage(key, message);
-						if (!config.dryRun) {
-							try {
-								const ok = await emailService.sendBallotReminderEmail({
-									type: 'open',
-									ballotId: b.id,
-									ballotTitle: b.title,
-									voterEmail: r.email,
-									voterName: r.name ?? undefined,
-									when: new Date(b.voting_opens_at),
-									minutes
-								});
-								if (ok) {
-									await db.insert(notifications).values({
-										user_id: r.keyUserId,
-										ballot_id: b.id,
-										type: 'voting_reminder',
-										message: withKey
-									});
-									count++;
-								}
-							} catch (e) {
-								console.error('open-reminder email failed', { ballotId: b.id });
-								errors++;
-							}
-						} else {
-							count++;
-						}
+					.offset(offset)
+					.limit(limit);
+			}, config.batchSize)) {
+				const key = buildIdempKey(b.id, 'open-reminder', new Date(b.voting_opens_at));
+				const recipients = await fetchRecipients(b.id);
+				const userIds = recipients.map((r) => r.keyUserId);
+				const sent = await alreadySentMap(userIds, b.id, key, 'voting_reminder');
+				let count = 0;
+				for (const r of recipients) {
+					if (sent.has(r.keyUserId)) {
+						skipped++;
+						continue;
 					}
-					openReminders.push({ ballotId: b.id, count });
+					const minutes = Math.max(
+						1,
+						Math.ceil((new Date(b.voting_opens_at).getTime() - now.getTime()) / 60_000)
+					);
+					const message = `Ballot opens in ${minutes} minute${minutes === 1 ? '' : 's'}`;
+					const withKey = withKeyMessage(key, message);
+					if (!config.dryRun) {
+						try {
+							const ok = await emailService.sendBallotReminderEmail({
+								type: 'open',
+								ballotId: b.id,
+								ballotTitle: b.title,
+								voterEmail: r.email,
+								voterName: r.name ?? undefined,
+								when: new Date(b.voting_opens_at),
+								minutes
+							});
+							if (ok) {
+								await db.insert(notifications).values({
+									user_id: r.keyUserId,
+									ballot_id: b.id,
+									type: 'voting_reminder',
+									message: withKey
+								});
+								count++;
+							}
+						} catch (e) {
+							console.error('open-reminder email failed', { ballotId: b.id });
+							errors++;
+						}
+					} else {
+						count++;
+					}
 				}
-				return toRemind.length === config.batchSize; // continue if full batch
-			});
+				openReminders.push({ ballotId: b.id, count });
+			}
 		} catch (e) {
 			console.error('Error in open reminder phase', e);
 			errors++;
@@ -155,71 +151,63 @@ export class BallotCron {
 
 		// 2) Close reminders (only open ballots)
 		try {
-			await this.iterateBatches(maxIterations, async () => {
-				const windowEnd = new Date(now.getTime() + config.closeReminderMinutes * 60_000);
-				const toRemind = await db
+			const windowEnd = new Date(now.getTime() + config.closeReminderMinutes * 60_000);
+
+			for await (const b of batchToGenerator((offset, limit) => {
+				return db
 					.select()
 					.from(ballots)
-					.where(
-						and(
-							eq(ballots.status, 'open'),
-							gte(ballots.voting_closes_at, now),
-							lte(ballots.voting_closes_at, windowEnd)
-						)
-					)
+					.where(and(eq(ballots.status, 'open'), between(ballots.voting_closes_at, now, windowEnd)))
 					.orderBy(asc(ballots.voting_closes_at))
-					.limit(config.batchSize);
-				if (toRemind.length === 0) return false;
-
-				for (const b of toRemind) {
-					const key = buildIdempKey(b.id, 'close-reminder', new Date(b.voting_closes_at));
-					const recipients = await fetchRecipients(b.id);
-					const userIds = recipients.map((r) => r.keyUserId);
-					const sent = await alreadySentMap(userIds, b.id, key, 'voting_reminder');
-					let count = 0;
-					for (const r of recipients) {
-						if (sent.has(r.keyUserId)) {
-							skipped++;
-							continue;
-						}
-						const minutes = Math.max(
-							1,
-							Math.ceil((new Date(b.voting_closes_at).getTime() - now.getTime()) / 60_000)
-						);
-						const message = `Ballot closes in ${minutes} minute${minutes === 1 ? '' : 's'}`;
-						const withKey = withKeyMessage(key, message);
-						if (!config.dryRun) {
-							try {
-								const ok = await emailService.sendBallotReminderEmail({
-									type: 'close',
-									ballotId: b.id,
-									ballotTitle: b.title,
-									voterEmail: r.email,
-									voterName: r.name ?? undefined,
-									when: new Date(b.voting_closes_at),
-									minutes
-								});
-								if (ok) {
-									await db.insert(notifications).values({
-										user_id: r.keyUserId,
-										ballot_id: b.id,
-										type: 'voting_reminder',
-										message: withKey
-									});
-									count++;
-								}
-							} catch (e) {
-								console.error('close-reminder email failed', { ballotId: b.id });
-								errors++;
-							}
-						} else {
-							count++;
-						}
+					.offset(offset)
+					.limit(limit);
+			}, config.batchSize)) {
+				const key = buildIdempKey(b.id, 'close-reminder', new Date(b.voting_closes_at));
+				const recipients = await fetchRecipients(b.id);
+				const userIds = recipients.map((r) => r.keyUserId);
+				const sent = await alreadySentMap(userIds, b.id, key, 'voting_reminder');
+				let count = 0;
+				for (const r of recipients) {
+					if (sent.has(r.keyUserId)) {
+						skipped++;
+						continue;
 					}
-					closeReminders.push({ ballotId: b.id, count });
+					const minutes = Math.max(
+						1,
+						Math.ceil((new Date(b.voting_closes_at).getTime() - now.getTime()) / 60_000)
+					);
+					const message = `Ballot closes in ${minutes} minute${minutes === 1 ? '' : 's'}`;
+					const withKey = withKeyMessage(key, message);
+					if (!config.dryRun) {
+						try {
+							const ok = await emailService.sendBallotReminderEmail({
+								type: 'close',
+								ballotId: b.id,
+								ballotTitle: b.title,
+								voterEmail: r.email,
+								voterName: r.name ?? undefined,
+								when: new Date(b.voting_closes_at),
+								minutes
+							});
+							if (ok) {
+								await db.insert(notifications).values({
+									user_id: r.keyUserId,
+									ballot_id: b.id,
+									type: 'voting_reminder',
+									message: withKey
+								});
+								count++;
+							}
+						} catch (e) {
+							console.error('close-reminder email failed', { ballotId: b.id });
+							errors++;
+						}
+					} else {
+						count++;
+					}
 				}
-				return toRemind.length === config.batchSize;
-			});
+				closeReminders.push({ ballotId: b.id, count });
+			}
 		} catch (e) {
 			console.error('Error in close reminder phase', e);
 			errors++;
@@ -227,64 +215,61 @@ export class BallotCron {
 
 		// 3) Open transitions
 		try {
-			await this.iterateBatches(maxIterations, async () => {
-				const toOpen = await db
+			for await (const b of batchToGenerator((offset, limit) => {
+				return db
 					.select()
 					.from(ballots)
 					.where(and(eq(ballots.status, 'draft'), lte(ballots.voting_opens_at, now)))
 					.orderBy(asc(ballots.voting_opens_at))
-					.limit(config.batchSize);
-				if (toOpen.length === 0) return false;
-
-				for (const b of toOpen) {
-					let transitioned = false;
-					if (!config.dryRun) {
-						const [updated] = await db
-							.update(ballots)
-							.set({ status: 'open' })
-							.where(and(eq(ballots.id, b.id), eq(ballots.status, 'draft')))
-							.returning();
-						transitioned = !!updated;
-					}
-					if (config.dryRun || transitioned) {
-						opened.push(b.id);
-						// notify voters (email + in-app for registered users)
-						const key = buildIdempKey(b.id, 'opened', new Date(b.voting_opens_at));
-						const recipients = await fetchRecipients(b.id);
-						const userIds = recipients.map((r) => r.keyUserId);
-						const sent = await alreadySentMap(userIds, b.id, key, 'voting_opened');
-						for (const r of recipients) {
-							if (sent.has(r.keyUserId)) {
-								skipped++;
-								continue;
-							}
-							if (!config.dryRun) {
-								try {
-									const ok = await emailService.sendBallotOpenedEmail({
-										ballotId: b.id,
-										ballotTitle: b.title,
-										voterEmail: r.email,
-										voterName: r.name ?? undefined,
-										closesAt: new Date(b.voting_closes_at)
+					.offset(offset)
+					.limit(limit);
+			}, config.batchSize)) {
+				let transitioned = false;
+				if (!config.dryRun) {
+					const [updated] = await db
+						.update(ballots)
+						.set({ status: 'open' })
+						.where(and(eq(ballots.id, b.id), eq(ballots.status, 'draft')))
+						.returning();
+					transitioned = !!updated;
+				}
+				if (config.dryRun || transitioned) {
+					opened.push(b.id);
+					// notify voters (email + in-app for registered users)
+					const key = buildIdempKey(b.id, 'opened', new Date(b.voting_opens_at));
+					const recipients = await fetchRecipients(b.id);
+					const userIds = recipients.map((r) => r.keyUserId);
+					const sent = await alreadySentMap(userIds, b.id, key, 'voting_opened');
+					for (const r of recipients) {
+						if (sent.has(r.keyUserId)) {
+							skipped++;
+							continue;
+						}
+						if (!config.dryRun) {
+							try {
+								const ok = await emailService.sendBallotOpenedEmail({
+									ballotId: b.id,
+									ballotTitle: b.title,
+									voterEmail: r.email,
+									voterName: r.name ?? undefined,
+									closesAt: new Date(b.voting_closes_at)
+								});
+								if (ok) {
+									await db.insert(notifications).values({
+										user_id: r.keyUserId,
+										ballot_id: b.id,
+										type: 'voting_opened',
+										message: withKeyMessage(key, 'Voting is now open')
 									});
-									if (ok) {
-										await db.insert(notifications).values({
-											user_id: r.keyUserId,
-											ballot_id: b.id,
-											type: 'voting_opened',
-											message: withKeyMessage(key, 'Voting is now open')
-										});
-									}
-								} catch (e) {
-									console.error('opened email failed', { ballotId: b.id });
-									errors++;
 								}
+							} catch (e) {
+								console.error('opened email failed', { ballotId: b.id });
+								errors++;
 							}
 						}
 					}
 				}
-				return toOpen.length === config.batchSize;
-			});
+			}
 		} catch (e) {
 			console.error('Error in open transition phase', e);
 			errors++;
@@ -292,62 +277,59 @@ export class BallotCron {
 
 		// 4) Close transitions
 		try {
-			await this.iterateBatches(maxIterations, async () => {
-				const toClose = await db
+			for await (const b of batchToGenerator((offset, limit) => {
+				return db
 					.select()
 					.from(ballots)
 					.where(and(eq(ballots.status, 'open'), lte(ballots.voting_closes_at, now)))
 					.orderBy(asc(ballots.voting_closes_at))
-					.limit(config.batchSize);
-				if (toClose.length === 0) return false;
-
-				for (const b of toClose) {
-					let transitioned = false;
-					if (!config.dryRun) {
-						const [updated] = await db
-							.update(ballots)
-							.set({ status: 'closed' })
-							.where(and(eq(ballots.id, b.id), eq(ballots.status, 'open')))
-							.returning();
-						transitioned = !!updated;
-					}
-					if (config.dryRun || transitioned) {
-						closed.push(b.id);
-						const key = buildIdempKey(b.id, 'closed', new Date(b.voting_closes_at));
-						const recipients = await fetchRecipients(b.id);
-						const userIds = recipients.map((r) => r.keyUserId);
-						const sent = await alreadySentMap(userIds, b.id, key, 'voting_closed');
-						for (const r of recipients) {
-							if (sent.has(r.keyUserId)) {
-								skipped++;
-								continue;
-							}
-							if (!config.dryRun) {
-								try {
-									const ok = await emailService.sendBallotClosedEmail({
-										ballotId: b.id,
-										ballotTitle: b.title,
-										voterEmail: r.email,
-										voterName: r.name ?? undefined
+					.offset(offset)
+					.limit(limit);
+			}, config.batchSize)) {
+				let transitioned = false;
+				if (!config.dryRun) {
+					const [updated] = await db
+						.update(ballots)
+						.set({ status: 'closed' })
+						.where(and(eq(ballots.id, b.id), eq(ballots.status, 'open')))
+						.returning();
+					transitioned = !!updated;
+				}
+				if (config.dryRun || transitioned) {
+					closed.push(b.id);
+					const key = buildIdempKey(b.id, 'closed', new Date(b.voting_closes_at));
+					const recipients = await fetchRecipients(b.id);
+					const userIds = recipients.map((r) => r.keyUserId);
+					const sent = await alreadySentMap(userIds, b.id, key, 'voting_closed');
+					for (const r of recipients) {
+						if (sent.has(r.keyUserId)) {
+							skipped++;
+							continue;
+						}
+						if (!config.dryRun) {
+							try {
+								const ok = await emailService.sendBallotClosedEmail({
+									ballotId: b.id,
+									ballotTitle: b.title,
+									voterEmail: r.email,
+									voterName: r.name ?? undefined
+								});
+								if (ok) {
+									await db.insert(notifications).values({
+										user_id: r.keyUserId,
+										ballot_id: b.id,
+										type: 'voting_closed',
+										message: withKeyMessage(key, 'Voting is now closed')
 									});
-									if (ok) {
-										await db.insert(notifications).values({
-											user_id: r.keyUserId,
-											ballot_id: b.id,
-											type: 'voting_closed',
-											message: withKeyMessage(key, 'Voting is now closed')
-										});
-									}
-								} catch (e) {
-									console.error('closed email failed', { ballotId: b.id });
-									errors++;
 								}
+							} catch (e) {
+								console.error('closed email failed', { ballotId: b.id });
+								errors++;
 							}
 						}
 					}
 				}
-				return toClose.length === config.batchSize;
-			});
+			}
 		} catch (e) {
 			console.error('Error in close transition phase', e);
 			errors++;
@@ -362,12 +344,5 @@ export class BallotCron {
 			skipped,
 			errors
 		};
-	}
-
-	private static async iterateBatches(maxIterations: number, fn: () => Promise<boolean | void>) {
-		for (let i = 0; i < maxIterations; i++) {
-			const cont = await fn();
-			if (!cont) break;
-		}
 	}
 }

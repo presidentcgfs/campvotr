@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
 	import { AuthService } from '$lib/auth';
 	import { browser } from '$app/environment';
 
@@ -10,55 +9,25 @@
 			user = currentUser ?? null;
 		});
 	}
-	async function handleSignOut() {
-		try {
-			await fetch('/auth', { method: 'POST', body: new FormData() });
-			user = null;
-			goto('/auth');
-		} catch (error) {
-			console.error('Sign out error:', error);
-		}
-	}
 </script>
 
-<nav class="navbar">
-	<div class="nav-container">
+<nav class="flex w-full flex-wrap items-center justify-between border-b p-6">
+	<div class="mr-6 flex flex-1 flex-shrink-0 items-center text-white">
 		<a href="/" class="nav-brand">CampVotr</a>
 
-		<div class="nav-links">
+		<div class="block w-full flex-grow items-center gap-1 lg:flex lg:w-auto">
 			{#if user}
-				<a href="/dashboard" class="nav-link" class:active={page.url.pathname === '/dashboard'}>
-					Dashboard
-				</a>
-				<a href="/ballots" class="nav-link" class:active={page.url.pathname.startsWith('/ballots')}>
-					Ballots
-				</a>
-
-				<a
-					href="/voter-lists"
-					class="nav-link"
-					class:active={page.url.pathname.startsWith('/voter-lists')}
-				>
-					Voter Lists
-				</a>
-				<a
-					href="/notifications"
-					class="nav-link"
-					class:active={page.url.pathname === '/notifications'}
-				>
-					Notifications
-				</a>
+				<a href="/dashboard" class:active={page.url.pathname === '/dashboard'}> Dashboard </a>
+				<a href="/ballots" class:active={page.url.pathname.startsWith('/ballots')}> Ballots </a>
+			{/if}
+		</div>
+		<div class="user-menu">
+			{#if user}
 				<a
 					href="/settings"
 					class="nav-link"
-					class:active={page.url.pathname.startsWith('/settings')}
+					class:active={page.url.pathname.startsWith('/settings')}>{user.email}</a
 				>
-					Settings
-				</a>
-				<div class="user-menu">
-					<span class="user-email">{user.email}</span>
-					<button onclick={handleSignOut} class="sign-out-btn"> Sign Out </button>
-				</div>
 			{:else}
 				<a href="/auth" class="nav-link">Sign In</a>
 			{/if}
@@ -88,36 +57,16 @@
 	.nav-brand {
 		font-size: 1.5rem;
 		font-weight: bold;
-		color: #007bff;
+		color: var(--color-primary);
 		text-decoration: none;
-	}
-
-	.nav-brand:hover {
-		color: #0056b3;
 	}
 
 	.nav-links {
-		display: flex;
-		align-items: center;
-		gap: 1rem;
+		@apply block w-full flex-1 flex-grow lg:flex lg:w-auto lg:items-center;
 	}
 
 	.nav-link {
-		color: #666;
-		text-decoration: none;
-		padding: 0.5rem 1rem;
-		border-radius: 4px;
-		transition: all 0.2s;
-	}
-
-	.nav-link:hover {
-		color: #007bff;
-		background: #f8f9fa;
-	}
-
-	.nav-link.active {
-		color: #007bff;
-		background: #e3f2fd;
+		@apply mr-4 mt-4 block flex text-teal-200 hover:text-white lg:mt-0 lg:inline-block;
 	}
 
 	.user-menu {
@@ -157,22 +106,8 @@
 		}
 
 		.nav-links {
-			margin-top: 1rem;
 			flex-wrap: wrap;
 			justify-content: center;
-		}
-
-		.user-menu {
-			margin-left: 0;
-			padding-left: 0;
-			border-left: none;
-			border-top: 1px solid #e0e0e0;
-			padding-top: 1rem;
-			margin-top: 1rem;
-		}
-
-		.user-email {
-			display: none;
 		}
 	}
 </style>

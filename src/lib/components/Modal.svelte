@@ -228,6 +228,9 @@
 		padding: 1rem;
 	}
 	.modal-footer {
+		display: flex;
+		justify-content: flex-end;
+		gap: 1rem;
 		padding: 1rem;
 		border-top: 1px solid #e5e7eb;
 	}

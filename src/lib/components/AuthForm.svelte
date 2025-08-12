@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { AuthService } from '$lib/auth';
+	import Button from './Button.svelte';
 
 	export let mode: 'signin' | 'signup' = 'signin';
 	export let onLogin: () => void = () => {
@@ -10,7 +11,7 @@
 	let password = '';
 	let loading = false;
 	let error = '';
-
+	let message = '';
 	async function handleSubmit() {
 		if (!email || !password) {
 			error = 'Please fill in all fields';
@@ -23,6 +24,8 @@
 		try {
 			if (mode === 'signup') {
 				await AuthService.signUp(email, password);
+				message = 'Account created. Please check your email to verify your account.';
+				mode = 'signin';
 			} else {
 				await AuthService.signIn(email, password);
 			}
@@ -56,9 +59,9 @@
 	}
 </script>
 
-<div class="auth-form">
-	<h2>{mode === 'signin' ? 'Sign In' : 'Sign Up'}</h2>
-
+<div
+	class="center flex w-full max-w-xs flex-col place-content-center content-center justify-center"
+>
 	<!-- Google Sign-In Button -->
 	<button type="button" class="google-btn" on:click={handleGoogleSignIn} disabled={loading}>
 		<svg width="18" height="18" viewBox="0 0 24 24">
@@ -85,16 +88,31 @@
 	<div class="divider">
 		<span>or</span>
 	</div>
-
-	<form on:submit|preventDefault={handleSubmit}>
-		<div class="form-group">
-			<label for="email">Email</label>
-			<input id="email" type="email" bind:value={email} placeholder="Enter your email" required />
+	<div>
+		{#if message}
+			<p class="border-l-4 border-orange-500 bg-orange-100 p-4 text-orange-700">{message}</p>
+		{/if}
+	</div>
+	<form
+		on:submit|preventDefault={handleSubmit}
+		class="mb-4 rounded bg-white px-8 pb-8 pt-6 shadow-md"
+	>
+		<div class="mb-2 block text-gray-700">
+			<label class="mb-2 block text-sm font-bold text-gray-700" for="email">Email</label>
+			<input
+				id="email"
+				class="focus:shadow-outline w-full appearance-none rounded border px-3 py-2 leading-tight text-gray-700 shadow focus:outline-none"
+				type="email"
+				bind:value={email}
+				placeholder="Enter your email"
+				required
+			/>
 		</div>
 
-		<div class="form-group">
-			<label for="password">Password</label>
+		<div class="mb-2 block text-gray-700">
+			<label for="password" class="mb-2 block text-sm font-bold text-gray-700">Password</label>
 			<input
+				class="focus:shadow-outline w-full appearance-none rounded border px-3 py-2 leading-tight text-gray-700 shadow focus:outline-none"
 				id="password"
 				type="password"
 				bind:value={password}
@@ -105,12 +123,12 @@
 		</div>
 
 		{#if error}
-			<div class="error">{error}</div>
+			<p class="border-l-4 border-red-500 bg-red-100 p-4 text-red-700">{error}</p>
 		{/if}
 
-		<button type="submit" disabled={loading}>
+		<Button type="submit" disabled={loading}>
 			{loading ? 'Loading...' : mode === 'signin' ? 'Sign In' : 'Sign Up'}
-		</button>
+		</Button>
 	</form>
 
 	<p class="toggle-mode">
@@ -122,65 +140,8 @@
 </div>
 
 <style>
-	.auth-form {
-		max-width: 400px;
-		margin: 2rem auto;
-		padding: 2rem;
-		border: 1px solid #ddd;
-		border-radius: 8px;
-		background: white;
-	}
-
-	h2 {
-		text-align: center;
-		margin-bottom: 1.5rem;
-		color: #333;
-	}
-
-	.form-group {
-		margin-bottom: 1rem;
-	}
-
-	label {
-		display: block;
-		margin-bottom: 0.5rem;
-		font-weight: 500;
-		color: #555;
-	}
-
-	input {
-		width: 100%;
-		padding: 0.75rem;
-		border: 1px solid #ddd;
-		border-radius: 4px;
-		font-size: 1rem;
-	}
-
-	input:focus {
-		outline: none;
-		border-color: #007bff;
-		box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-	}
-
-	button {
-		width: 100%;
-		padding: 0.75rem;
-		background: #007bff;
-		color: white;
-		border: none;
-		border-radius: 4px;
-		font-size: 1rem;
-		cursor: pointer;
-		transition: background-color 0.2s;
-	}
-
-	button:hover:not(:disabled) {
-		background: #0056b3;
-	}
-
-	button:disabled {
-		background: #6c757d;
-		cursor: not-allowed;
+	.center {
+		margin: 0 auto;
 	}
 
 	.google-btn {
@@ -207,25 +168,25 @@
 
 	.divider {
 		text-align: center;
-		margin: 1.5rem 0;
 		position: relative;
 	}
 
-	.divider::before {
+	.divider::before,
+	.divider::after {
 		content: '';
 		position: absolute;
 		top: 50%;
-		left: 0;
-		right: 0;
 		height: 1px;
+		width: calc(50% - 1rem);
 		background: #ddd;
 	}
-
-	.divider span {
-		background: white;
-		padding: 0 1rem;
-		color: #666;
-		font-size: 0.9rem;
+	.divider::before {
+		left: unset;
+		right: 0;
+	}
+	.divider::after {
+		right: unset;
+		left: 0;
 	}
 
 	.error {

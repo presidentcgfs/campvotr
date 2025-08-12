@@ -1,100 +1,54 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
+	import { formatISOLocal, tomorrow } from '$lib/utils/date';
+	import Button from './Button.svelte';
 	import Modal from './Modal.svelte';
 
-	interface OpenVotingConfirmPayload {
-		votingOpensAt: string;
-		votingClosesAt: string;
-		sendNotifications: boolean;
-	}
-
-	export let isOpen = false;
+	export let open = false;
 	export let ballotTitle = '';
-	export let onConfirm: ((payload: OpenVotingConfirmPayload) => void) | undefined;
-
-	let loading = false;
-	let error = '';
-
-	// Default to current time and 24 hours from now
-	const now = new Date();
-	const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-
-	let votingOpensAt = now.toISOString().slice(0, 16);
-	let votingClosesAt = tomorrow.toISOString().slice(0, 16);
-	let sendNotifications = true;
-
-	function closeModal() {
-		if (!loading) {
-			isOpen = false;
-			error = '';
-			// Reset to defaults
-			const newNow = new Date();
-			const newTomorrow = new Date(newNow.getTime() + 24 * 60 * 60 * 1000);
-			votingOpensAt = newNow.toISOString().slice(0, 16);
-			votingClosesAt = newTomorrow.toISOString().slice(0, 16);
-			sendNotifications = true;
-		}
-	}
-
-	async function handleSubmit() {
-		if (loading) return;
-
-		// Validate times
-		const opensAt = new Date(votingOpensAt);
-		const closesAt = new Date(votingClosesAt);
-		const currentTime = new Date();
-
-		if (opensAt < currentTime) {
-			error = 'Voting open time cannot be in the past';
-			return;
-		}
-
-		if (closesAt <= opensAt) {
-			error = 'Voting close time must be after open time';
-			return;
-		}
-
-		loading = true;
-		error = '';
-
-		try {
-			onConfirm?.({
-				votingOpensAt,
-				votingClosesAt,
-				sendNotifications
-			});
-		} catch (err) {
-			error = 'Failed to open voting. Please try again.';
-			loading = false;
-		}
-	}
-
-	// Handle successful submission from parent
-	export function handleSuccess() {
-		loading = false;
-		closeModal();
-	}
-
-	// Handle error from parent
-	export function handleError(errorMessage: string) {
-		loading = false;
-		error = errorMessage;
-	}
+	export let ballotId: string;
+	export let error: string | undefined = undefined;
+	export let onOpen = () => {};
 </script>
 
-<Modal bind:open={isOpen} title="Open Voting" size="md" initialFocus="#voting-opens">
+<Modal bind:open title="Open Voting" size="md" initialFocus="#voting-opens">
 	<p class="ballot-info">
 		You are about to open voting for: <strong>{ballotTitle}</strong>
 	</p>
 
-	<form on:submit|preventDefault={handleSubmit}>
+	<form
+		action={`/api/ballots/${ballotId}/open`}
+		use:enhance={({ formElement, formData, action, cancel, submitter }) => {
+			// `formElement` is this `<form>` element
+			// `formData` is its `FormData` object that's about to be submitted
+			// `action` is the URL to which the form is posted
+			// calling `cancel()` will prevent the submission
+			// `submitter` is the `HTMLElement` that caused the form to be submitted
+
+			return async ({ result, update }) => {
+				await update();
+				if (result?.type === 'error') {
+					error = 'Failed to open voting.';
+				} else {
+					onOpen();
+					open = false;
+				}
+				// `result` is an `ActionResult` object
+				// `update` is a function which triggers the default logic that would be triggered if this callback wasn't set
+			};
+		}}
+		method="POST"
+		id="open-voting-form"
+	>
+		<input type="hidden" name="ballot_id" value={ballotId} />
 		<div class="form-group">
 			<label for="voting-opens">Voting Opens *</label>
 			<input
 				id="voting-opens"
 				type="datetime-local"
-				bind:value={votingOpensAt}
+				name="voting_opens_at"
+				value={formatISOLocal()}
 				required
-				disabled={loading}
 				data-autofocus
 			/>
 			<small class="form-help">When voters can start casting their votes</small>
@@ -104,17 +58,17 @@
 			<label for="voting-closes">Voting Closes *</label>
 			<input
 				id="voting-closes"
+				name="voting_closes_at"
 				type="datetime-local"
-				bind:value={votingClosesAt}
+				value={formatISOLocal(tomorrow())}
 				required
-				disabled={loading}
 			/>
 			<small class="form-help">When voting will automatically close</small>
 		</div>
 
 		<div class="form-group">
 			<label class="checkbox-label">
-				<input type="checkbox" bind:checked={sendNotifications} disabled={loading} />
+				<input type="checkbox" name="send_notifications" checked={true} />
 				<span class="checkbox-text">Send notification to voters</span>
 			</label>
 			<small class="form-help">
@@ -127,13 +81,9 @@
 		{/if}
 	</form>
 
-	<div slot="footer" class="modal-actions">
-		<button type="button" class="btn btn-secondary" on:click={closeModal} disabled={loading}>
-			Cancel
-		</button>
-		<button type="submit" formnovalidate class="btn btn-primary" disabled={loading}>
-			{loading ? 'Opening Voting...' : 'Open Voting'}
-		</button>
+	<div slot="footer">
+		<Button variant="secondary" onclick={() => (open = false)}>Cancel</Button>
+		<Button type="submit" action="submit" form="open-voting-form">Open Voting</Button>
 	</div>
 </Modal>
 
@@ -222,39 +172,5 @@
 		justify-content: flex-end;
 		padding-top: 1rem;
 		border-top: 1px solid #e5e7eb;
-	}
-
-	.btn {
-		padding: 0.75rem 1.5rem;
-		border-radius: 6px;
-		font-weight: 500;
-		font-size: 0.875rem;
-		cursor: pointer;
-		transition: all 0.2s;
-		border: 1px solid transparent;
-	}
-
-	.btn:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
-	}
-
-	.btn-secondary {
-		background: white;
-		color: #374151;
-		border-color: #d1d5db;
-	}
-
-	.btn-secondary:hover:not(:disabled) {
-		background: #f9fafb;
-		border-color: #9ca3af;
-	}
-
-	.btn-primary {
-		background: #3b82f6;
-		color: white;
-	}
-	.btn-primary:hover:not(:disabled) {
-		background: #2563eb;
 	}
 </style>

@@ -17,7 +17,8 @@ export const POST: RequestHandler = async (event) => {
 		return await withAuth(event, async (event, user) => {
 			const body = await event.request.json();
 			const validatedData = createBallotSchema.parse(body);
-			const orgId = (event.locals as any).organizationContext?.organization?.id;
+
+			const orgId = event.locals.organizationContext?.organization?.id;
 			if (!orgId) return json({ error: 'Organization context required' }, { status: 400 });
 			const ballot = await BallotService.createBallot({
 				...validatedData,
