@@ -3,34 +3,11 @@
 	import BallotCard from '$lib/components/BallotCard.svelte';
 	import CreateBallotForm from '$lib/components/CreateBallotForm.svelte';
 	import type { Ballot, BallotWithVotes } from '$lib/types';
-
-	let ballots: BallotWithVotes[] = [];
-	let loading = true;
+	import Button from '$lib/components/Button.svelte';
+	export let data: { ballots: BallotWithVotes[]; canCreateBallot: boolean };
+	let ballots: BallotWithVotes[] = data.ballots;
 	let error = '';
 	let showCreateForm = false;
-
-	onMount(async () => {
-		await loadBallots();
-	});
-
-	async function loadBallots() {
-		try {
-			loading = true;
-
-			const response = await fetch('/api/ballots');
-
-			if (response.ok) {
-				const result = await response.json();
-				ballots = result.ballots;
-			} else {
-				error = 'Failed to load ballots';
-			}
-		} catch (err) {
-			error = 'Network error. Please try again.';
-		} finally {
-			loading = false;
-		}
-	}
 
 	function handleBallotCreated(payload: { ballot: Ballot }) {
 		ballots = [payload.ballot as unknown as BallotWithVotes, ...ballots];
@@ -45,23 +22,16 @@
 <div class="container">
 	<div class="page-header">
 		<h1>Ballots</h1>
-		<button on:click={toggleCreateForm} class="btn">
-			{showCreateForm ? 'Cancel' : 'Create New Ballot'}
-		</button>
+		{#if data.canCreateBallot}
+			<Button onclick={toggleCreateForm} class="btn">Create New Ballot</Button>
+		{/if}
 	</div>
 
 	{#if showCreateForm}
 		<CreateBallotForm onCreated={handleBallotCreated} />
 	{/if}
 
-	{#if loading}
-		<div class="loading">Loading ballots...</div>
-	{:else if error}
-		<div class="error">
-			{error}
-			<button on:click={loadBallots} class="btn btn-sm">Retry</button>
-		</div>
-	{:else if ballots.length === 0}
+	{#if ballots.length === 0}
 		<div class="empty-state">
 			<h3>No ballots found</h3>
 			<p>Create your first ballot to get started.</p>

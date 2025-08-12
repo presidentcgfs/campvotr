@@ -5,21 +5,19 @@
 	export let loading = false;
 	export let label = '';
 	export let href: string | undefined = undefined;
-
 	$: component = href ? 'a' : 'button';
 </script>
 
 <svelte:element
 	this={component}
-	type="button"
-	class="btn"
+	class="btn {$$props.class}"
 	class:variant
 	class:size
 	class:has-icon={$$slots.icon}
 	data-btn={size}
 	data-btn-type={variant}
-	disabled={disabled || loading}
-	{href}
+	data-disabled={disabled || loading}
+	{...component === 'a' ? { href } : { disabled: disabled || loading }}
 	{...$$props}
 >
 	{#if loading}
@@ -47,7 +45,8 @@
 	.btn:hover {
 		opacity: 0.7;
 	}
-	.btn:disabled {
+	.btn:disabled,
+	.btn[data-disabled] {
 		@apply cursor-not-allowed rounded px-4 py-2 font-bold text-white opacity-50;
 		cursor: not-allowed;
 		opacity: 0.6;

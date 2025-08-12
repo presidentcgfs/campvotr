@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import { AuthService } from '$lib/auth';
 	import { browser } from '$app/environment';
+	import Button from './Button.svelte';
 
 	let user = $state(page.data.user);
 	if (browser) {
@@ -13,23 +14,18 @@
 
 <nav class="flex w-full flex-wrap items-center justify-between border-b p-6">
 	<div class="mr-6 flex flex-1 flex-shrink-0 items-center text-white">
-		<a href="/" class="nav-brand">CampVotr</a>
-
 		<div class="block w-full flex-grow items-center gap-1 lg:flex lg:w-auto">
-			{#if user}
-				<a href="/dashboard" class:active={page.url.pathname === '/dashboard'}> Dashboard </a>
-				<a href="/ballots" class:active={page.url.pathname.startsWith('/ballots')}> Ballots </a>
-			{/if}
+			<a href="/dashboard" class="nav-brand"
+				>{page.data.organizationContext?.organization.name ?? 'CampVotr'}</a
+			>
 		</div>
 		<div class="user-menu">
 			{#if user}
-				<a
-					href="/settings"
-					class="nav-link"
-					class:active={page.url.pathname.startsWith('/settings')}>{user.email}</a
+				<Button href="/settings" class={page.url.pathname.startsWith('/settings') && 'active'}
+					>{user.email}</Button
 				>
 			{:else}
-				<a href="/auth" class="nav-link">Sign In</a>
+				<Button href="/auth">Sign In</Button>
 			{/if}
 		</div>
 	</div>
@@ -51,7 +47,6 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		height: 60px;
 	}
 
 	.nav-brand {
@@ -64,11 +59,6 @@
 	.nav-links {
 		@apply block w-full flex-1 flex-grow lg:flex lg:w-auto lg:items-center;
 	}
-
-	.nav-link {
-		@apply mr-4 mt-4 block flex text-teal-200 hover:text-white lg:mt-0 lg:inline-block;
-	}
-
 	.user-menu {
 		display: flex;
 		align-items: center;
@@ -83,31 +73,11 @@
 		font-size: 0.9rem;
 	}
 
-	.sign-out-btn {
-		background: #dc3545;
-		color: white;
-		border: none;
-		padding: 0.5rem 1rem;
-		border-radius: 4px;
-		cursor: pointer;
-		font-size: 0.9rem;
-		transition: background-color 0.2s;
-	}
-
-	.sign-out-btn:hover {
-		background: #c82333;
-	}
-
 	@media (max-width: 768px) {
 		.nav-container {
 			flex-direction: column;
 			height: auto;
 			padding: 1rem 0;
-		}
-
-		.nav-links {
-			flex-wrap: wrap;
-			justify-content: center;
 		}
 	}
 </style>

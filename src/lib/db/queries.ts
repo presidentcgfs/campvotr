@@ -87,22 +87,28 @@ export class BallotService {
 		return ballot;
 	}
 
-	static async getBallots(userId: string, organizationId?: string) {
+	static async getBallots(userId: string, organizationId?: string, limit?: number) {
 		// Return ballots the user created or is assigned to vote on, optionally scoped to organization
-		const eligibleBallots = await db
+
+		const ands = [
+			or(eq(voters.user_id, userId), eq(ballots.creator_id, userId), eq(authUsers.id, userId))
+		];
+		if (organizationId) {
+			ands.push(eq(ballots.organization_id, organizationId));
+		}
+		const eligibleBallots = db
 			.selectDistinctOn([ballots.id, ballots.created_at])
 			.from(ballots)
 			.leftJoin(ballotVoters, and(eq(ballots.id, ballotVoters.ballot_id)))
 			.leftJoin(voters, eq(ballotVoters.voter_id, voters.id))
 			.leftJoin(authUsers, eq(voters.email, authUsers.email))
-			.where(
-				and(
-					or(eq(voters.user_id, userId), eq(ballots.creator_id, userId), eq(authUsers.id, userId)),
-					organizationId ? eq(ballots.organization_id, organizationId) : sql`true`
-				)
-			)
+			.where(ands.length === 1 ? ands[0] : and(...ands))
 			.orderBy(desc(ballots.created_at));
-		return eligibleBallots.flatMap((v) => v.ballots);
+
+		if (limit) {
+			eligibleBallots.limit(limit);
+		}
+		return (await eligibleBallots).flatMap((v) => v.ballots);
 	}
 
 	static async getBallot(id: string, userId: string) {
