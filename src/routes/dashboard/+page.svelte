@@ -6,6 +6,7 @@
 		openBallots: BallotWithVotes[];
 		recentBallots: BallotWithVotes[];
 		totalBallots: number;
+		canCreateBallot: boolean;
 	};
 	$: openBallots = data.openBallots;
 	$: recentBallots = data.recentBallots;
@@ -37,7 +38,7 @@
 
 			{#if recentBallots.length === 0 && data.canCreateBallot}
 				<p class="empty-message">
-					No ballots yet. <a href="/ballots">Create your first ballot</a>.
+					No ballots yet. <Button href="/ballots?create">Create your first ballot</Button>.
 				</p>
 			{:else}
 				<div class="ballots-list">

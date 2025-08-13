@@ -11,6 +11,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const ballots = await BallotService.getBallots(locals.user?.id, orgId);
 	const openBallots = ballots.filter((d) => d.status === 'open');
 	const recentBallots = ballots.filter((d) => d.status !== 'draft').slice(0, 5);
-
+	const canCreateBallot = locals.user?.role === 'admin';
 	return { openBallots, recentBallots, totalBallots: ballots.length };
 };

@@ -6,7 +6,6 @@
 	export let ballot: BallotWithVotes;
 
 	$: isOpen = ballot.status === 'open';
-	$: isClosed = ballot.status === 'closed';
 	$: votingEnded = Date.now() > new Date(ballot.voting_closes_at).getTime();
 	$: votingStarted = Date.now() >= new Date(ballot.voting_opens_at).getTime();
 
