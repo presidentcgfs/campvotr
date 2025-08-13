@@ -2,15 +2,16 @@ import { BallotService } from '$lib/db/queries';
 import { json } from 'zod';
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
+import { isAdmin } from '$lib/utils/authorize';
 
-export const load: PageServerLoad = async ({ locals, url }) => {
-	if (!locals.user) {
+export const load: PageServerLoad = async ({ locals: { user, organizationContext }, url }) => {
+	if (!user) {
 		throw redirect(303, `/auth?redirectTo=${encodeURIComponent(url.pathname + url.search)}`);
 	}
-	const orgId = locals.organizationContext?.organization?.id;
-	const ballots = await BallotService.getBallots(locals.user?.id, orgId);
+	const orgId = organizationContext?.organization?.id;
+	const ballots = await BallotService.getBallots(user.id, orgId);
 	const openBallots = ballots.filter((d) => d.status === 'open');
 	const recentBallots = ballots.filter((d) => d.status !== 'draft').slice(0, 5);
-	const canCreateBallot = locals.user?.role === 'admin';
-	return { openBallots, recentBallots, totalBallots: ballots.length };
+	const canCreateBallot = isAdmin(user);
+	return { canCreateBallot, openBallots, recentBallots, totalBallots: ballots.length };
 };
