@@ -15,11 +15,10 @@ type Run<T> = (offset: number, limit: number) => Promise<T[]>;
  * @returns
  */
 export async function* batchToGenerator<T>(execute: Run<T>, batchSize: number) {
-	let result: T[];
 	let offset = 0;
 	let length = 0;
 	do {
-		result = await execute(offset, batchSize);
+		const result = await execute(offset, batchSize);
 		length = result?.length ?? 0;
 		if (length === 0) return;
 		offset += length;

@@ -1,8 +1,9 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { z } from 'zod';
-import { withAuth } from '$lib/server/middleware';
-import { supabaseAdmin } from '$lib/server/auth';
+import { withAuth } from '$lib/services/middleware';
+import { supabaseAdmin } from '$lib/services/auth';
+import { parseResponse } from '$lib/utils/parse';
 
 const nameSchema = z
 	.string()
@@ -29,21 +30,15 @@ const updateUserSchema = z.object({
 
 export const PATCH: RequestHandler = async (event) =>
 	withAuth(event, async (_evt, user) => {
-		try {
-			const parsed = updateUserSchema.parse(await event.request.json());
-			// Update Supabase auth user metadata with the new name
-			const { data, error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
-				user_metadata: { ...(user.user_metadata || {}), ...parsed }
-			});
-			if (error) return json({ error: 'Failed to update name' }, { status: 500 });
-			return json({
-				id: data.user?.id,
-				email: data.user?.email,
-				name: data.user?.user_metadata?.name
-			});
-		} catch (e: any) {
-			if (e instanceof z.ZodError)
-				return json({ error: e.issues?.[0]?.message || 'Invalid name' }, { status: 422 });
-			return json({ error: 'Request failed' }, { status: 400 });
-		}
+		const parsed = await parseResponse(updateUserSchema, event.request);
+		// Update Supabase auth user metadata with the new name
+		const { data, error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+			user_metadata: { ...(user.user_metadata || {}), ...parsed }
+		});
+		if (error) return json({ error: 'Failed to update name' }, { status: 500 });
+		return json({
+			id: data.user?.id,
+			email: data.user?.email,
+			name: data.user?.user_metadata?.name
+		});
 	});

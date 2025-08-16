@@ -1,53 +1,40 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { BallotService, NotificationService } from '$lib/db/queries';
-import { withAuth, handleError } from '$lib/server/middleware';
-import { updateBallotStatusSchema, openVotingSchema, idSchema } from '$lib/validation';
+import { withAuth, handleError } from '$lib/services/middleware';
+import { openVotingSchema, idSchema } from '$lib/validation';
+import { ballotServiceKey } from '$lib/services/ballot-service';
+import { notificationServiceKey } from '$lib/services/notification-service';
+import { parseResponse } from '$lib/utils/parse';
 
-export const POST: RequestHandler = async (event) => {
-	try {
-		return await withAuth(event, async (event, user) => {
-			const { id } = idSchema.parse(event.params);
-			const body =
-				event.request.headers.get('content-type') === 'application/json'
-					? await event.request.json()
-					: Object.fromEntries(await event.request.formData());
+export const POST: RequestHandler = async (event) =>
+	withAuth(event, async (event, user) => {
+		const ballotService = event.locals.resolve(ballotServiceKey);
+		const notificationService = event.locals.resolve(notificationServiceKey);
+		const { id } = idSchema.parse(event.params);
+		const validatedData = await parseResponse(openVotingSchema, event.request);
 
-			// Check if user is the creator of the ballot
-			const existingBallot = await BallotService.getBallot(id, user.id);
-			if (!existingBallot) {
-				return json({ error: 'Ballot not found' }, { status: 404 });
-			}
+		// Check if user is the creator of the ballot
+		const existingBallot = await ballotService.getBallot(id, user.id);
+		if (!existingBallot) {
+			return json({ error: 'Ballot not found' }, { status: 404 });
+		}
 
-			if (existingBallot.creator_id !== user.id) {
-				return json({ error: 'Forbidden' }, { status: 403 });
-			}
+		if (existingBallot.creator_id !== user.id) {
+			return json({ error: 'Forbidden' }, { status: 403 });
+		}
 
-			// Handle different types of updates
-			// Validate that ballot is in draft status
-			if (existingBallot.status === 'closed') {
-				return json({ error: 'Can only change for not closed ballots' }, { status: 400 });
-			}
+		// Handle different types of updates
+		// Validate that ballot is in draft status
+		if (existingBallot.status === 'closed') {
+			return json({ error: 'Can only change for not closed ballots' }, { status: 400 });
+		}
 
-			const validatedData = openVotingSchema.parse(body);
-			const ballot = await BallotService.openVoting(id, {
-				voting_opens_at: validatedData.voting_opens_at,
-				voting_closes_at: validatedData.voting_closes_at
-			});
+		const ballot = await ballotService.openVoting(id, validatedData);
 
-			// Send notifications to voters if requested
-			if (validatedData.send_notifications) {
-				try {
-					await NotificationService.notifyVotingOpened(id);
-				} catch (error) {
-					console.error('Failed to send voting opened notifications:', error);
-					// Don't fail the request if notifications fail
-				}
-			}
+		// Send notifications to voters if requested
+		if (validatedData.send_notifications) {
+			await notificationService.notifyVotingOpened(id);
+		}
 
-			return json({ ballot, success: true });
-		});
-	} catch (error) {
-		return handleError(error);
-	}
-};
+		return json({ ballot, success: true });
+	});

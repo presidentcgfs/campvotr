@@ -123,16 +123,6 @@
 		color: #333;
 	}
 
-	.view-all {
-		color: #007bff;
-		text-decoration: none;
-		font-size: 0.9rem;
-	}
-
-	.view-all:hover {
-		text-decoration: underline;
-	}
-
 	.empty-message {
 		color: #666;
 		text-align: center;

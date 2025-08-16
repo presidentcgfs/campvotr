@@ -4,43 +4,47 @@
 	import OrganizationMembers from './OrganizationMembers.svelte';
 	import OrgTieBreakerSelector from './OrgTieBreakerSelector.svelte';
 	import Button from './Button.svelte';
+	import Modal from './Modal.svelte';
+	import type { Organization } from '../../model.types';
 
-	export let organization: {
-		id: string;
-		name: string;
-		slug: string;
-		logo_url: string | null;
-		primary_color: string;
-		secondary_color: string;
-		accent_color: string;
-	};
+	export let organizationId: string | undefined = undefined;
 	export let role: 'OWNER' | 'ADMIN' | 'EDITOR' | 'MEMBER' | 'VIEWER' | null;
+	export let open = false;
 
-	let logoFile: File | null = null;
 	let error = '';
+	let organization: Organization | undefined = undefined;
 
-	let primary = organization?.primary_color ?? '#2563eb';
-	let secondary = organization?.secondary_color ?? '#64748b';
-	let accent = organization?.accent_color ?? '#22c55e';
+	$: primary = organization?.primary_color ?? '#2563eb';
+	$: secondary = organization?.secondary_color ?? '#64748b';
+	$: accent = organization?.accent_color ?? '#22c55e';
+	$: domainInput = organization?.primary_domain;
 
-	let domainInput: string | null = null;
 	let success = '';
+	let loading = false;
+	async function loadOrganization(orgId?: string) {
+		if (loading || !orgId || organization?.id === orgId) return;
+		loading = true;
+		const resp = await (await fetch(`/api/organizations/${organizationId}`)).json();
+		organization = resp.organization;
+		role = resp.role;
+		loading = false;
+	}
+	$: mounted && loadOrganization(organizationId);
 
+	$: mounted = false;
 	onMount(() => {
+		mounted = true;
 		// Initialize form values from incoming org
-		domainInput = (organization as any).primary_domain ?? null;
 		applyTheme({ primaryColor: primary, secondaryColor: secondary, accentColor: accent });
 	});
 
-	$: if (primary && secondary && accent) {
+	$: if (primary && secondary && accent && mounted) {
 		applyTheme({ primaryColor: primary, secondaryColor: secondary, accentColor: accent });
 	}
 
-	function colorValid(c: string) {
-		return validateHexColor(c);
-	}
+	async function uploadLogo(logoFile: File) {
+		if (!organization) return;
 
-	async function uploadLogo() {
 		error = '';
 		try {
 			if (!logoFile) return;
@@ -50,7 +54,7 @@
 			}
 			const body = new FormData();
 			body.set('file', logoFile);
-			const res = await fetch(`/api/organizations/${organization.slug}/logo`, {
+			const res = await fetch(`/api/organizations/${organization.id}/logo`, {
 				method: 'POST',
 				body
 			});
@@ -63,10 +67,11 @@
 	}
 
 	async function saveBranding() {
+		if (!organization) return;
 		error = '';
 		try {
-			if (![primary, secondary, accent].every(colorValid)) throw new Error('Invalid color');
-			const res = await fetch(`/api/organizations/${organization.slug}`, {
+			if (![primary, secondary, accent].every(validateHexColor)) throw new Error('Invalid color');
+			const res = await fetch(`/api/organizations/${organization.id}`, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
@@ -102,157 +107,114 @@
 	$: activeTab = 'branding';
 </script>
 
-<div class="settings">
-	<div class="tabs">
-		<button
-			class="tab"
-			class:active={activeTab === 'branding'}
-			on:click={() => (activeTab = 'branding')}>Branding</button
+<Modal bind:open title="Organization Settings" size="lg">
+	<div class="mb-4 flex gap-2">
+		<Button
+			class={activeTab === 'branding'
+				? 'active inline-block rounded-lg bg-blue-600 px-4 py-3 text-white'
+				: 'inline-block rounded-lg px-4 py-3 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white'}
+			onclick={() => (activeTab = 'branding')}>Branding</Button
 		>
-		<button
-			class="tab"
-			class:active={activeTab === 'members'}
-			on:click={() => (activeTab = 'members')}>Members</button
+		<Button
+			class={activeTab === 'members'
+				? 'active inline-block rounded-lg bg-blue-600 px-4 py-3 text-white'
+				: 'inline-block rounded-lg px-4 py-3 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white'}
+			onclick={() => (activeTab = 'members')}>Members</Button
 		>
 	</div>
-	{#if activeTab === 'members'}
-		<div class="section">
+	{#if activeTab === 'members' && organization}
+		<div>
 			<OrganizationMembers {organization} {role} />
 			{#if role === 'OWNER' || role === 'ADMIN'}
-				<hr />
-				<OrgTieBreakerSelector orgSlug={organization.slug} canEdit={true} />
+				<hr class="my-4" />
+				<OrgTieBreakerSelector orgId={organizationId!} canEdit={true} />
 			{/if}
 		</div>
-	{/if}
-</div>
-
-{#if activeTab === 'branding'}
-	<section class="branding">
-		<div class="row">
-			<div>
-				<label for="logo-input">Logo</label>
-				{#if organization.logo_url}
-					<img src={organization.logo_url} alt="Logo" class="logo" />
-				{/if}
-				<input
-					id="logo-input"
-					type="file"
-					accept="image/png,image/jpeg,image/svg+xml"
-					on:change={(e) => (logoFile = (e.target as HTMLInputElement).files?.[0] ?? null)}
-				/>
-				<Button
-					on:click={uploadLogo}
-					disabled={!logoFile || !(role === 'OWNER' || role === 'ADMIN')}>Upload</Button
-				>
-			</div>
-			<label for="primary-domain">Primary domain</label>
-			<input
-				id="primary-domain"
-				type="text"
-				placeholder="example.org"
-				bind:value={domainInput}
-				readonly={!(role === 'OWNER' || role === 'ADMIN')}
-			/>
-			<small
-				>Used to select this organization when visiting this hostname. Do not include http/https,
-				paths, or ports.</small
-			>
-
-			<div class="colors">
-				<label for="primary-color"
-					><span class="hidden sm:inline">Primary Color</span>
-					<input id="primary-color" type="color" bind:value={primary} />
-				</label>
-				<label for="secondary-color">
-					<span class="hidden sm:inline">Secondary Color</span>
-					<input id="secondary-color" type="color" bind:value={secondary} />
-				</label>
-				<label for="accent-color"
-					><span class="hidden sm:inline">Accent Color</span>
-					<input id="accent-color" type="color" bind:value={accent} />
-				</label>
-				<div
-					class="preview"
-					style="--primary-color: {primary}; --secondary-color: {secondary}; --accent-color: {accent}"
-				>
-					<Button>Primary Button</Button>
-					<Button variant="tertiary" href="/">Link</Button>
-					<Button variant="secondary">Secondary Button</Button>
+	{:else if activeTab === 'branding'}
+		<section>
+			<div class="grid grid-cols-[220px_1fr] gap-4">
+				<div class="col-span-2">
+					<label for="logo-input" class="mb-2 block font-semibold">Logo</label>
+					{#if organization?.logo_url}
+						<img
+							src={organization.logo_url}
+							alt="Logo"
+							class="mb-2 block max-h-[120px] max-w-[200px]"
+						/>
+					{/if}
+					<input
+						id="logo-input"
+						type="file"
+						accept="image/png,image/jpeg,image/svg+xml"
+						class="mb-2"
+						onchange={(e) => uploadLogo((e.target as any)?.files?.[0])}
+					/>
 				</div>
-				<Button on:click={saveBranding} disabled={!(role === 'OWNER' || role === 'ADMIN')}
-					>Save</Button
-				>
+
+				<label for="primary-domain" class="font-semibold">Primary domain</label>
+				<div>
+					<input
+						id="primary-domain"
+						type="text"
+						placeholder="example.org"
+						bind:value={domainInput}
+						readonly={!(role === 'OWNER' || role === 'ADMIN')}
+						class="focus:ring-primary w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2"
+					/>
+					<small class="mt-1 block text-sm text-gray-600"
+						>Used to select this organization when visiting this hostname. Do not include
+						http/https, paths, or ports.</small
+					>
+				</div>
+
+				<div class="col-span-2 flex flex-col gap-4 rounded-lg border p-4">
+					<label for="primary-color" class="block font-semibold"
+						><span class="hidden sm:inline">Primary Color</span>
+						<input
+							id="primary-color"
+							type="color"
+							bind:value={primary}
+							class="ml-2 h-5 w-5 cursor-pointer rounded-full border-0 p-0"
+						/>
+					</label>
+					<label for="secondary-color" class="block font-semibold">
+						<span class="hidden sm:inline">Secondary Color</span>
+						<input
+							id="secondary-color"
+							type="color"
+							bind:value={secondary}
+							class="ml-2 h-5 w-5 cursor-pointer rounded-full border-0 p-0"
+						/>
+					</label>
+					<label for="accent-color" class="block font-semibold"
+						><span class="hidden sm:inline">Accent Color</span>
+						<input
+							id="accent-color"
+							type="color"
+							bind:value={accent}
+							class="ml-2 h-5 w-5 cursor-pointer rounded-full border-0 p-0"
+						/>
+					</label>
+					<div
+						class="mt-4 flex items-center gap-3"
+						style="--primary-color: {primary}; --secondary-color: {secondary}; --accent-color: {accent}"
+					>
+						<Button>Primary Button</Button>
+						<Button variant="tertiary" href="/">Link</Button>
+						<Button variant="secondary">Secondary Button</Button>
+					</div>
+				</div>
 			</div>
-		</div>
-		{#if error}
-			<p class="error">{error}</p>
-		{/if}
-	</section>
-{/if}
+			{#if error}
+				<p class="mt-2 text-red-600">{error}</p>
+			{/if}
+			{#if success}
+				<p class="mt-2 text-green-600">{success}</p>
+			{/if}
+		</section>
+	{/if}
 
-<style>
-	.tabs {
-		display: flex;
-		gap: 0.5rem;
-		margin-bottom: 1rem;
-	}
-	.tab {
-		background: #eee;
-		border-radius: 6px;
-		padding: 0.5rem 0.75rem;
-	}
-	.tab.active {
-		background: var(--color-secondary);
-		color: white;
-	}
-	.row {
-		display: grid;
-		grid-template-columns: 220px 1fr;
-		gap: 1rem;
-	}
-	.logo {
-		max-width: 200px;
-		max-height: 120px;
-		display: block;
-		margin-bottom: 0.5rem;
-	}
-	.colors {
-		@apply flex flex-col gap-4 rounded-lg border p-4;
-	}
-	.colors label {
-		display: block;
-		font-weight: 600;
-		margin-top: 0.75rem;
-	}
-	.colors input {
-		border: 1px solid #ddd;
-		border-radius: 6px;
-		padding: 0.5rem 0.75rem;
-	}
-	.colors input.invalid {
-		border-color: #dc2626;
-	}
-	.preview {
-		margin-top: 1rem;
-		display: flex;
-		gap: 0.75rem;
-		align-items: center;
-	}
-
-	.error {
-		color: #dc2626;
-	}
-	.sample {
-		display: inline-block;
-		width: 1rem;
-		height: 1rem;
-		border-radius: 9999px;
-	}
-	.branding input[type='color'] {
-		width: 20px;
-		height: 20px;
-		padding: 0;
-		border: none;
-		border-radius: 50%;
-	}
-</style>
+	<div slot="footer">
+		<Button onclick={saveBranding} disabled={!(role === 'OWNER' || role === 'ADMIN')}>Save</Button>
+	</div>
+</Modal>

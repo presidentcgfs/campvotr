@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
-import { BallotService } from '$lib/db/queries';
-import { getUser, supabaseServer } from '$lib/server/auth';
+import { ballotServiceKey } from '$lib/services/ballot-service';
+import { getUser, supabaseServer } from '$lib/services/auth';
 
 export const GET: RequestHandler = async (event) => {
 	// Prefer SSR cookie-based user; fallback to legacy header or query param token
@@ -20,8 +20,11 @@ export const GET: RequestHandler = async (event) => {
 
 	const { id: ballotId } = event.params;
 
+	// Get BallotService instance through dependency injection
+	const ballotService = event.locals.resolve(ballotServiceKey);
+
 	// Check if ballot exists and user is eligible
-	const ballot = await BallotService.getBallot(ballotId, user.id);
+	const ballot = await ballotService.getBallot(ballotId, user.id);
 	if (!ballot) {
 		return new Response('Ballot not found or access denied', { status: 404 });
 	}
@@ -34,8 +37,8 @@ export const GET: RequestHandler = async (event) => {
 			const sendUpdate = async () => {
 				try {
 					if (closed) return;
-					const voteCounts = await BallotService.getVoteCounts(ballotId);
-					const userVote = await BallotService.getUserVote(ballotId, user.id);
+					const voteCounts = await ballotService.getVoteCounts(ballotId);
+					const userVote = await ballotService.getUserVote(ballotId, user.id);
 					const data = JSON.stringify({
 						vote_counts: voteCounts,
 						user_vote: userVote,

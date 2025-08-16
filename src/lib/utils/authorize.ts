@@ -4,5 +4,5 @@
  * @returns
  */
 export function isAdmin(user: { role?: string }) {
-	return user.role.toLowerCase() === 'admin';
+	return user.role?.toLowerCase() === 'admin' || user.role?.toLowerCase() === 'owner';
 }

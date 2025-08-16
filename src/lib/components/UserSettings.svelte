@@ -5,90 +5,25 @@
 	import UserNameForm from '$lib/components/UserNameForm.svelte';
 	import UserAvatarForm from '$lib/components/UserAvatarForm.svelte';
 	import Modal from '$lib/components/Modal.svelte';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import Button from './Button.svelte';
+	import type { Organization } from '../../model.types';
 
-	type Org = {
-		id: string;
-		name: string;
-		slug: string;
-		logo_url?: string | null;
-		primary_color?: string;
-		secondary_color?: string;
-		accent_color?: string;
-	};
 	type OrgWithRole = {
-		organization: Org;
+		organization: Organization;
 		role: 'OWNER' | 'ADMIN' | 'EDITOR' | 'MEMBER' | 'VIEWER' | null;
 	};
 
-	let loading = true;
 	let error: string | null = null;
-	let items: { id: string; name: string; slug: string; role: OrgWithRole['role'] }[] = [];
-
-	let selected: Org | null = null;
-	let selectedRole: OrgWithRole['role'] = null;
+	export let items: { id: string; name: string; slug: string; role: OrgWithRole['role'] }[] = [];
+	export let selected: Pick<
+		Organization,
+		'id' | 'name' | 'slug' | 'logo_url' | 'primary_color' | 'secondary_color' | 'accent_color'
+	> | null = null;
+	export let selectedRole: OrgWithRole['role'] = null;
 	let open = false;
 	// Load full org details on open as required
-	$: if (open && selected) {
-		(async () => {
-			try {
-				const r = await fetch(`/api/organizations/${selected.slug}`);
-				if (r.ok) {
-					const data = await r.json();
-					selected = {
-						id: data.organization.id,
-						name: data.organization.name,
-						slug: data.organization.slug,
-						logo_url: data.organization.logo_url,
-						primary_color: data.organization.primary_color,
-						secondary_color: data.organization.secondary_color,
-						accent_color: data.organization.accent_color
-					};
-					selectedRole = data.role;
-				}
-			} catch (e) {
-				// ignore, still show basic view
-			}
-		})();
-	}
 
-	async function fetchOrganizations(): Promise<{ id: string; name: string; slug: string }[]> {
-		const res = await fetch('/api/organizations');
-		if (!res.ok) throw new Error((await res.json()).error || 'Failed to load organizations');
-		return (await res.json()).organizations ?? [];
-	}
-
-	async function loadOrgs() {
-		loading = true;
-		error = null;
-		try {
-			const orgs = await fetchOrganizations();
-			// Fetch role per org via detail endpoint; batch sequentially to keep simple
-			const results: { id: string; name: string; slug: string; role: OrgWithRole['role'] }[] = [];
-			for (const org of orgs) {
-				try {
-					const r = await fetch(`/api/organizations/${org.slug}`);
-					if (!r.ok) throw new Error((await r.json()).error || 'Failed to load org');
-					const data = await r.json();
-					results.push({
-						id: data.organization.id,
-						name: data.organization.name,
-						slug: data.organization.slug,
-						role: data.role
-					});
-				} catch (e) {
-					results.push({ id: org.id, name: org.name, slug: org.slug, role: null });
-				}
-			}
-			items = results;
-		} catch (e: any) {
-			error = e.message ?? 'Failed to load organizations';
-		} finally {
-			loading = false;
-		}
-	}
-	$: console.log({ items });
 	function editOrg(slug: string) {
 		const row = items.find((i) => i.slug === slug);
 		if (!row) return;
@@ -105,29 +40,6 @@
 		open = true;
 	}
 
-	// Refresh item from API detail after closing
-	async function refreshSelected() {
-		if (!selected) return;
-		try {
-			const r = await fetch(`/api/organizations/${selected.slug}`);
-			if (!r.ok) return;
-			const data = await r.json();
-			const idx = items.findIndex((i) => i.slug === selected!.slug);
-			if (idx >= 0) {
-				items[idx] = {
-					id: data.organization.id,
-					name: data.organization.name,
-					slug: data.organization.slug,
-					role: data.role
-				};
-			}
-		} catch {}
-	}
-
-	$: if (!open) {
-		// When modal closes, refresh list to reflect any changes
-		refreshSelected();
-	}
 	async function handleSignOut() {
 		try {
 			await fetch('/api/auth/signout', { method: 'POST', body: new FormData() });
@@ -136,7 +48,6 @@
 			console.error('Sign out error:', error);
 		}
 	}
-	onMount(loadOrgs);
 </script>
 
 <section class="container">
@@ -153,11 +64,7 @@
 	<UserNameForm />
 	<UserAvatarForm />
 
-	{#if loading}
-		<div class="card loading">Loading organizations…</div>
-	{:else if error}
-		<div class="card error">{error}</div>
-	{:else if items.length === 0}
+	{#if items.length === 0}
 		<div class="card">You don't belong to any organizations yet.</div>
 	{:else}
 		<div class="card">
@@ -190,13 +97,7 @@
 		</div>
 	{/if}
 
-	{#if selected}
-		<Modal bind:open title="Edit Organization" size="lg">
-			{#if open}
-				<OrganizationSettings organization={selected as any} role={selectedRole} />
-			{/if}
-		</Modal>
-	{/if}
+	<OrganizationSettings bind:open organizationId={selected?.id} role={selectedRole} />
 </section>
 
 <style>

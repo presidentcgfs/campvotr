@@ -1,32 +1,9 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import type { Notification } from '$lib/types';
-
-	let notifications: Notification[] = [];
+	export let data: { notifications: Notification[] };
+	let notifications: Notification[] = data.notifications;
 	let loading = true;
 	let error = '';
-
-	onMount(async () => {
-		await loadNotifications();
-	});
-
-	async function loadNotifications() {
-		try {
-			loading = true;
-			const response = await fetch('/api/notifications');
-
-			if (response.ok) {
-				const result = await response.json();
-				notifications = result.notifications;
-			} else {
-				error = 'Failed to load notifications';
-			}
-		} catch (err) {
-			error = 'Network error. Please try again.';
-		} finally {
-			loading = false;
-		}
-	}
 
 	async function markNotificationAsRead(notificationId: string) {
 		try {
@@ -36,7 +13,7 @@
 
 			if (response.ok) {
 				// Update the notification in the list
-				notifications = notifications.map((n) =>
+				notifications = data.notifications.map((n) =>
 					n.id === notificationId ? { ...n, read_at: new Date().toISOString() } : n
 				);
 			}

@@ -1,11 +1,9 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { z } from 'zod';
-import { withAuth } from '$lib/server/middleware';
-import { BallotService } from '$lib/db/queries';
-import { db } from '$lib/db';
-import { ballots } from '$lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { withAuth } from '$lib/services/middleware';
+import { idSchema } from '$lib/validation';
+import { ballotServiceKey } from '$lib/services/ballot-service';
 
 const bodySchema = z.object({
 	vote_choice: z.enum(['yea', 'nay', 'abstain']),
@@ -14,21 +12,21 @@ const bodySchema = z.object({
 
 export const POST: RequestHandler = async (event) =>
 	withAuth(event, async (event, user) => {
-		const id = event.params.id!;
+		const id = idSchema.parse(event.params.id).id;
 		const body = await event.request.json();
 		const data = bodySchema.parse(body);
-
-		const [b] = await db.select().from(ballots).where(eq(ballots.id, id)).limit(1);
+		const ballotService = event.locals.resolve(ballotServiceKey);
+		const b = await ballotService.getBallot(id, user.id);
 		if (!b) return json({ error: 'Not found' }, { status: 404 });
 
 		const now = new Date();
-		const closed = now > new Date(b.voting_closes_at) || b.status === 'closed';
+		const closed = now > b.voting_closes_at || b.status === 'closed';
 		if (!closed) return json({ error: 'Ballot is not closed' }, { status: 400 });
 
-		const effective = await BallotService.getEffectiveTieBreakerUserId(id);
+		const effective = await ballotService.getEffectiveTieBreakerUserId(id);
 		if (!effective || effective !== user.id) return json({ error: 'Forbidden' }, { status: 403 });
 
-		const tie = await BallotService.calculateTieStatus(id);
+		const tie = await ballotService.calculateTieStatus(id);
 		if (!tie.isTie) return json({ error: 'No tie to resolve' }, { status: 409 });
 
 		if (!tie.tiedChoices.includes(data.vote_choice))
@@ -40,7 +38,7 @@ export const POST: RequestHandler = async (event) =>
 
 		const ip =
 			event.getClientAddress?.() ?? event.request.headers.get('x-forwarded-for') ?? undefined;
-		await BallotService.recordTieBreakerVote({
+		await ballotService.recordTieBreakerVote({
 			ballotId: id,
 			userId: user.id,
 			vote_choice: data.vote_choice,
@@ -48,7 +46,7 @@ export const POST: RequestHandler = async (event) =>
 			ip
 		});
 
-		const updatedCounts = await BallotService.getVoteCounts(id);
+		const updatedCounts = await ballotService.getVoteCounts(id);
 
 		return json({ ok: true, vote_counts: updatedCounts });
 	});

@@ -2,7 +2,6 @@
 	import { onMount } from 'svelte';
 	import Modal from './Modal.svelte';
 	import { type OrgRole } from '$lib/validation';
-	import { z } from 'zod';
 
 	export let organization: { id: string; slug: string; name: string };
 	export let role: OrgRole | null;
@@ -30,16 +29,18 @@
 
 	let isAdmin = false;
 	$: isAdmin = role === 'OWNER' || role === 'ADMIN';
-
 	onMount(async () => {
 		await fetchMembers();
 	});
 
 	async function fetchMembers() {
+		if (!organization?.id) {
+			return;
+		}
 		loading = true;
 		error = '';
 		try {
-			const res = await fetch(`/api/organizations/${organization.slug}/members`);
+			const res = await fetch(`/api/organizations/${organization.id}/members`);
 			if (!res.ok) throw await buildError(res);
 			const data = await res.json();
 			members = data.members ?? [];
@@ -97,7 +98,7 @@
 			const payload: any = { role: addRole };
 			if (email.trim()) payload.email = email.trim();
 			else payload.userId = userId.trim();
-			const res = await fetch(`/api/organizations/${organization.slug}/members`, {
+			const res = await fetch(`/api/organizations/${organization.id}/members`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(payload)
@@ -129,7 +130,7 @@
 		error = '';
 		updatingUserId = user_id;
 		try {
-			const res = await fetch(`/api/organizations/${organization.slug}/members/${user_id}`, {
+			const res = await fetch(`/api/organizations/${organization.id}/members/${user_id}`, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ role: newRole })
@@ -155,7 +156,7 @@
 		error = '';
 		const user_id = removingUserId;
 		try {
-			const res = await fetch(`/api/organizations/${organization.slug}/members/${user_id}`, {
+			const res = await fetch(`/api/organizations/${organization.id}/members/${user_id}`, {
 				method: 'DELETE'
 			});
 			if (!res.ok) throw await buildError(res);
@@ -168,22 +169,22 @@
 	}
 </script>
 
-<div class="members">
+<div>
 	{#if loading}
 		<p>Loading…</p>
 	{:else}
 		{#if error}
-			<p class="error">{error}</p>
+			<p class="text-red-600">{error}</p>
 		{/if}
 
 		{#if isAdmin}
 			<div
-				class="add-form"
+				class="mb-4 grid gap-2"
 				aria-disabled={!isAdmin}
 				title={!isAdmin ? 'You don’t have permission to manage members.' : undefined}
 			>
-				<div class="fields">
-					<label for="member-email"
+				<div class="grid grid-cols-[2fr_1fr] items-center gap-2">
+					<label for="member-email" class="block"
 						>Email
 						<input
 							id="member-email"
@@ -191,11 +192,17 @@
 							bind:value={email}
 							placeholder="name@example.org"
 							disabled={submitting || !isAdmin}
+							class="focus:ring-primary mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 disabled:bg-gray-100"
 						/>
 					</label>
-					<label for="member-role"
+					<label for="member-role" class="block"
 						>Role
-						<select id="member-role" bind:value={addRole} disabled={submitting || !isAdmin}>
+						<select
+							id="member-role"
+							bind:value={addRole}
+							disabled={submitting || !isAdmin}
+							class="focus:ring-primary mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 disabled:bg-gray-100"
+						>
 							<option>OWNER</option>
 							<option>ADMIN</option>
 							<option>EDITOR</option>
@@ -204,34 +211,43 @@
 						</select>
 					</label>
 				</div>
-				<button class="btn" on:click={addMember} disabled={submitting || !isAdmin}
-					>Add member</button
+				<button
+					class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-white disabled:bg-gray-300"
+					onclick={addMember}
+					disabled={submitting || !isAdmin}
 				>
-				{#if success}<p class="success">{success}</p>{/if}
+					Add member
+				</button>
+				{#if success}<p class="text-green-600">{success}</p>{/if}
 			</div>
 		{/if}
 
-		<div class="list">
+		<div>
 			{#if members.length === 0 && pendingInvites.length === 0}
 				<p>No members yet.</p>
 			{/if}
 
 			{#if members.length > 0}
-				<table>
+				<table class="w-full border-collapse">
 					<thead>
-						<tr><th>User</th><th>Role</th><th></th></tr>
+						<tr>
+							<th class="border-b border-gray-200 p-2 text-left">User</th>
+							<th class="border-b border-gray-200 p-2 text-left">Role</th>
+							<th class="border-b border-gray-200 p-2"></th>
+						</tr>
 					</thead>
 					<tbody>
 						{#each members as m}
 							<tr>
-								<td class="mono">{m.user?.email}</td>
-								<td>
+								<td class="border-b border-gray-200 p-2 font-mono text-xs">{m.user.email}</td>
+								<td class="border-b border-gray-200 p-2">
 									{#if isAdmin}
 										<select
 											bind:value={m.role}
 											disabled={updatingUserId === m.user_id}
-											on:change={(e) =>
+											onchange={(e) =>
 												changeRole(m.user_id, (e.target as HTMLSelectElement).value as OrgRole)}
+											class="focus:ring-primary rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 disabled:bg-gray-100"
 										>
 											<option>OWNER</option>
 											<option>ADMIN</option>
@@ -243,9 +259,14 @@
 										{m.role}
 									{/if}
 								</td>
-								<td class="actions">
+								<td class="border-b border-gray-200 p-2 text-right">
 									{#if isAdmin}
-										<button class="link" on:click={() => confirmRemove(m.user_id)}>Remove</button>
+										<button
+											class="bg-transparent text-blue-600 hover:underline"
+											onclick={() => confirmRemove(m.user_id)}
+										>
+											Remove
+										</button>
 									{/if}
 								</td>
 							</tr>
@@ -255,16 +276,24 @@
 			{/if}
 
 			{#if pendingInvites.length > 0}
-				<h4>Pending invites</h4>
-				<table>
+				<h4 class="mb-2 mt-4 font-semibold">Pending invites</h4>
+				<table class="w-full border-collapse">
 					<thead>
-						<tr><th>Email</th><th>Role</th></tr>
+						<tr>
+							<th class="border-b border-gray-200 p-2 text-left">Email</th>
+							<th class="border-b border-gray-200 p-2 text-left">Role</th>
+						</tr>
 					</thead>
 					<tbody>
 						{#each pendingInvites as inv}
-							<tr class="pending">
-								<td>{inv.email}</td>
-								<td>{inv.role} <span class="badge">pending</span></td>
+							<tr>
+								<td class="border-b border-gray-200 p-2">{inv.email}</td>
+								<td class="border-b border-gray-200 p-2">
+									{inv.role}
+									<span class="ml-2 rounded-full bg-amber-500 px-2 py-0.5 text-xs text-gray-900">
+										pending
+									</span>
+								</td>
 							</tr>
 						{/each}
 					</tbody>
@@ -275,61 +304,19 @@
 
 	<Modal bind:open={confirmOpen} title="Remove member" role="alertdialog">
 		<p>Are you sure you want to remove this member? This action cannot be undone.</p>
-		<div slot="footer">
-			<button class="btn" on:click={() => (confirmOpen = false)}>Cancel</button>
-			<button class="btn danger" on:click={removeMember}>Remove</button>
+		<div slot="footer" class="flex gap-2">
+			<button
+				class="rounded-md bg-gray-200 px-4 py-2 hover:bg-gray-300"
+				onclick={() => (confirmOpen = false)}
+			>
+				Cancel
+			</button>
+			<button
+				class="rounded-md bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+				onclick={removeMember}
+			>
+				Remove
+			</button>
 		</div>
 	</Modal>
 </div>
-
-<style>
-	.error {
-		color: #dc2626;
-	}
-	.success {
-		color: #16a34a;
-	}
-	.mono {
-		font-family:
-			ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-			monospace;
-		font-size: 12px;
-	}
-	.add-form {
-		margin-bottom: 1rem;
-		display: grid;
-		gap: 0.5rem;
-	}
-	.fields {
-		display: grid;
-		grid-template-columns: 2fr 1fr;
-		align-items: center;
-		gap: 0.5rem;
-	}
-
-	.list table {
-		width: 100%;
-		border-collapse: collapse;
-	}
-	th,
-	td {
-		padding: 0.5rem;
-		border-bottom: 1px solid #e5e7eb;
-	}
-	.badge {
-		background: #f59e0b;
-		color: #111827;
-		font-size: 12px;
-		border-radius: 9999px;
-		padding: 2px 8px;
-		margin-left: 6px;
-	}
-	.link {
-		color: #2563eb;
-		background: transparent;
-	}
-	.btn.danger {
-		background: #dc2626;
-		color: white;
-	}
-</style>

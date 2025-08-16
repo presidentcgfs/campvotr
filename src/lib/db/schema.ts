@@ -46,10 +46,10 @@ export const organizations = pgTable('organizations', {
 	primary_domain: varchar('primary_domain', { length: 255 }).unique(),
 	// Optional org-level tie-breaker designation (Supabase auth user id)
 	tie_breaker_user_id: uuid('tie_breaker_user_id'),
-
+	creator_id: uuid('creator_id'),
 	created_at: timestamp('created_at').defaultNow().notNull(),
 	updated_at: timestamp('updated_at').defaultNow().notNull()
-});
+}).enableRLS();
 
 // Organization memberships
 export const organizationMemberships = pgTable(
@@ -67,7 +67,7 @@ export const organizationMemberships = pgTable(
 	(table) => ({
 		org_user_unique: uniqueIndex('org_user_unique').on(table.organization_id, table.user_id)
 	})
-);
+).enableRLS();
 
 // Organization invites (pending memberships by email)
 export const organizationInvites = pgTable(
@@ -86,7 +86,7 @@ export const organizationInvites = pgTable(
 	(table) => ({
 		org_email_unique: uniqueIndex('org_email_unique').on(table.organization_id, table.email)
 	})
-);
+).enableRLS();
 
 // Tables
 export const voters = pgTable('voters', {
@@ -95,7 +95,7 @@ export const voters = pgTable('voters', {
 	name: varchar('name', { length: 255 }),
 	user_id: uuid('user_id'), // nullable for non-registered users
 	created_at: timestamp('created_at').defaultNow().notNull()
-});
+}).enableRLS();
 
 export const voterLists = pgTable('voter_lists', {
 	id: uuid('id').primaryKey().defaultRandom(),
@@ -107,7 +107,7 @@ export const voterLists = pgTable('voter_lists', {
 	}),
 	created_at: timestamp('created_at').defaultNow().notNull(),
 	updated_at: timestamp('updated_at').defaultNow().notNull()
-});
+}).enableRLS();
 
 export const voterListMembers = pgTable('voter_list_members', {
 	id: uuid('id').primaryKey().defaultRandom(),
@@ -118,7 +118,7 @@ export const voterListMembers = pgTable('voter_list_members', {
 		.references(() => voters.id, { onDelete: 'cascade' })
 		.notNull(),
 	added_at: timestamp('added_at').defaultNow().notNull()
-});
+}).enableRLS();
 
 export const ballots = pgTable('ballots', {
 	id: uuid('id').primaryKey().defaultRandom(),
@@ -142,7 +142,7 @@ export const ballots = pgTable('ballots', {
 	// Audit of tie-break resolution
 	tie_break_resolved_at: timestamp('tie_break_resolved_at'),
 	tie_break_resolution_note: text('tie_break_resolution_note')
-});
+}).enableRLS();
 
 export const ballotVoters = pgTable('ballot_voters', {
 	id: uuid('id').primaryKey().defaultRandom(),
@@ -153,7 +153,7 @@ export const ballotVoters = pgTable('ballot_voters', {
 		.references(() => voters.id, { onDelete: 'cascade' })
 		.notNull(),
 	added_at: timestamp('added_at').defaultNow().notNull()
-});
+}).enableRLS();
 
 export const votes = pgTable(
 	'votes',
@@ -173,7 +173,7 @@ export const votes = pgTable(
 	(table) => ({
 		votesUnique: uniqueIndex('votes_ballot_voter_unique').on(table.ballot_id, table.voter_id)
 	})
-);
+).enableRLS();
 
 export const voteEvents = pgTable('vote_events', {
 	id: uuid('id').primaryKey().defaultRandom(),
@@ -190,7 +190,7 @@ export const voteEvents = pgTable('vote_events', {
 	new_choice: voteChoiceEnum('new_choice'),
 	reason: text('reason'),
 	created_at: timestamp('created_at').defaultNow().notNull()
-});
+}).enableRLS();
 
 export const tieBreakerVotes = pgTable(
 	'tie_breaker_votes',
@@ -208,7 +208,7 @@ export const tieBreakerVotes = pgTable(
 	(table) => ({
 		uniqueBallot: uniqueIndex('tie_breaker_votes_ballot_unique').on(table.ballot_id)
 	})
-);
+).enableRLS();
 
 export const notifications = pgTable('notifications', {
 	id: uuid('id').primaryKey().defaultRandom(),
@@ -218,7 +218,7 @@ export const notifications = pgTable('notifications', {
 	message: text('message').notNull(),
 	sent_at: timestamp('sent_at').defaultNow().notNull(),
 	read_at: timestamp('read_at')
-});
+}).enableRLS();
 
 // Relations
 export const votersRelations = relations(voters, ({ many }) => ({

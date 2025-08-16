@@ -1,29 +1,36 @@
 import type { Handle } from '@sveltejs/kit';
 import { createSupabaseServer } from './supabase/server';
-import { dev } from '$app/environment';
-import { resolveOrganizationContext } from '$lib/server/org';
+import { context } from '@pbinj/pbj';
+import '@pbinj/pbj/scope';
+import { register } from '$lib/services/pbj';
+import { organizationServiceKey } from '$lib/services/org';
 
+const ctx = register(context);
 export const handle: Handle = async ({ event, resolve }) => {
 	// Initialize Supabase SSR client attached to cookies
 	const supabase = createSupabaseServer(event);
 	event.locals.supabase = supabase;
+	event.locals.resolve = (...args: any[]) => ctx.resolve(...(args as any[]));
 
 	// Retrieve session and user for downstream use
 	const {
 		data: { session }
 	} = await supabase.auth.getSession();
+
 	event.locals.session = session ?? null;
-	event.locals.user = session?.user ?? null;
+	const user = (event.locals.user = session?.user ?? null);
 	// Resolve organization context for SSR
 	try {
-		(event as any).locals.organizationContext = await resolveOrganizationContext(event);
+		(event as any).locals.organizationContext = await ctx
+			.resolve(organizationServiceKey)
+			.resolveOrganizationContext(event);
 	} catch (e) {
 		// org context is optional; ignore errors here
 
 		// If a user just signed in, connect any pending org invites for their email
 		try {
-			if ((event as any).locals.user?.email) {
-				const email = (event as any).locals.user.email.toLowerCase();
+			if (user?.email) {
+				const email = user.email.toLowerCase();
 				const { db } = await import('$lib/db');
 				const { organizationInvites, organizationMemberships } = await import('$lib/db/schema');
 				const { eq } = await import('drizzle-orm');
@@ -36,7 +43,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 						.insert(organizationMemberships)
 						.values({
 							organization_id: inv.organization_id,
-							user_id: (event as any).locals.user.id,
+							user_id: user.id,
 							role: inv.role
 						})
 						.onConflictDoUpdate({

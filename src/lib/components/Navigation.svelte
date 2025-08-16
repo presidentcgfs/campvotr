@@ -32,32 +32,11 @@
 </nav>
 
 <style>
-	.navbar {
-		background: #fff;
-		border-bottom: 1px solid #e0e0e0;
-		padding: 0 1rem;
-		position: sticky;
-		top: 0;
-		z-index: 100;
-	}
-
-	.nav-container {
-		max-width: 1200px;
-		margin: 0 auto;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-	}
-
 	.nav-brand {
 		font-size: 1.5rem;
 		font-weight: bold;
 		color: var(--color-primary);
 		text-decoration: none;
-	}
-
-	.nav-links {
-		@apply block w-full flex-1 flex-grow lg:flex lg:w-auto lg:items-center;
 	}
 	.user-menu {
 		display: flex;
@@ -66,18 +45,5 @@
 		margin-left: 1rem;
 		padding-left: 1rem;
 		border-left: 1px solid #e0e0e0;
-	}
-
-	.user-email {
-		color: #666;
-		font-size: 0.9rem;
-	}
-
-	@media (max-width: 768px) {
-		.nav-container {
-			flex-direction: column;
-			height: auto;
-			padding: 1rem 0;
-		}
 	}
 </style>

@@ -1,17 +1,13 @@
-import { BallotService } from '$lib/db/queries';
+import { ballotServiceKey } from '$lib/services/ballot-service';
+import { withAuthRedirect } from '$lib/services/middleware';
 import type { PageServerLoad } from './$types';
-import { redirect } from '@sveltejs/kit';
 
-export const load: PageServerLoad = async ({ locals, url }) => {
-	if (!locals.session) {
-		throw redirect(303, `/auth?redirectTo=${encodeURIComponent(url.pathname + url.search)}`);
-	}
-	const ballots = await BallotService.getBallots(
-		locals.user!.id,
-		locals.organizationContext?.organization?.id
-	);
+export const load = withAuthRedirect<PageServerLoad>(async ({ locals }) => {
+	const ballots = await locals
+		.resolve(ballotServiceKey)
+		.getBallots(locals.user!.id, locals.organizationContext?.organization?.id);
 	return {
 		ballots,
 		canCreateBallot: locals.user?.role === 'admin'
 	};
-};
+});

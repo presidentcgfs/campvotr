@@ -1,26 +1,29 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { AdminVoteService, BallotService } from '$lib/db/queries';
-import { withAuth, handleError } from '$lib/server/middleware';
-import { verifyBallotAdminAccess } from '$lib/server/authorization';
+import { withAuth, handleError } from '$lib/services/middleware';
+import { authorizationServiceKey } from '$lib/services/authorization';
+import { adminVoteServiceKey } from '$lib/services/vote.admin-service';
+import { ballotServiceKey } from '$lib/services/ballot-service';
 import { idSchema } from '$lib/validation';
 
 export const GET: RequestHandler = (event) =>
 	withAuth(event, async (event, user) => {
 		const { id: ballotId } = idSchema.parse(event.params);
 
-		// Check if ballot exists
-		const ballot = await BallotService.getBallot(ballotId, user.id);
+		const ballotService = event.locals.resolve(ballotServiceKey);
+		const ballot = await ballotService.getBallot(ballotId, user.id);
 		if (!ballot) {
 			return json({ error: 'Ballot not found' }, { status: 404 });
 		}
 
-		const role = await verifyBallotAdminAccess(event, ballotId, user.id);
+		const authz = event.locals.resolve(authorizationServiceKey);
+		const role = await authz.verifyBallotAdminAccess(event, ballotId, user.id);
 		if (!role) {
 			return json({ error: 'Forbidden' }, { status: 403 });
 		}
 
-		const { votes, vote_counts } = await AdminVoteService.retrieveBallotVotesForAdmin(ballotId);
+		const adminVotes = event.locals.resolve(adminVoteServiceKey);
+		const { votes, vote_counts } = await adminVotes.retrieveBallotVotesForAdmin(ballotId);
 
 		return json({
 			votes,

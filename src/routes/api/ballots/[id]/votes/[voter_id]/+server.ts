@@ -1,9 +1,11 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { withAuth, handleError } from '$lib/server/middleware';
-import { AdminVoteService, BallotService } from '$lib/db/queries';
-import { verifyBallotAdminAccess } from '$lib/server/authorization';
+import { withAuth, handleError } from '$lib/services/middleware';
+import { authorizationServiceKey } from '$lib/services/authorization';
+import { adminVoteServiceKey } from '$lib/services/vote.admin-service';
+import { ballotServiceKey } from '$lib/services/ballot-service';
 import { z } from 'zod';
+import { parseResponse } from '$lib/utils/parse';
 
 const bodySchema = z.object({
 	vote_choice: z.enum(['yea', 'nay', 'abstain']),
@@ -11,40 +13,50 @@ const bodySchema = z.object({
 	notify_user: z.boolean().optional().default(false)
 });
 
-export const PATCH: RequestHandler = async (event) => {
-	try {
-		return await withAuth(event, async (event, user) => {
-			const ballotId = event.params.id!;
-			const voterId = event.params.voter_id!;
+const idSchema = z.object({
+	id: z.string().uuid(),
+	voter_id: z.string().uuid()
+});
 
-			const ballot = await BallotService.getBallot(ballotId, user.id);
-			if (!ballot) return json({ error: 'Ballot not found' }, { status: 404 });
+export const PATCH: RequestHandler = async (event) =>
+	withAuth(event, async (event, user) => {
+		const { id: ballotId, voter_id: voterId } = idSchema.parse(event.params);
 
-			const actorRole = await verifyBallotAdminAccess(event, ballotId, user.id);
-			if (!actorRole) return json({ error: 'Forbidden' }, { status: 403 });
+		const ballotService = event.locals.resolve(ballotServiceKey);
+		const adminVotes = event.locals.resolve(adminVoteServiceKey);
+		const authz = event.locals.resolve(authorizationServiceKey);
 
-			const raw = await event.request.json();
-			const parsed = bodySchema.safeParse(raw);
-			if (!parsed.success) {
-				return json({ error: 'Invalid request', details: parsed.error.flatten() }, { status: 400 });
-			}
+		const ballot = await ballotService.getBallot(ballotId, user.id);
+		if (!ballot) return json({ error: 'Ballot not found' }, { status: 404 });
 
-			const vote = await AdminVoteService.updateVoteByAdmin({
-				ballot_id: ballotId,
-				voter_id: voterId,
-				new_choice: parsed.data.vote_choice,
-				reason: parsed.data.reason,
-				actor_user_id: user.id,
-				actor_role: actorRole === 'owner' ? 'owner' : 'admin'
-			});
+		const actorRole = await authz.verifyBallotAdminAccess(event, ballotId, user.id);
+		if (!actorRole) return json({ error: 'Forbidden' }, { status: 403 });
 
-			const vote_counts = await BallotService.getVoteCounts(ballotId);
+		const parsed = await parseResponse(bodySchema, event.request);
 
-			// TODO: optional notify_user email/notification here if desired
-
-			return json({ vote, vote_counts });
+		const vote = await adminVotes.updateVoteByAdmin({
+			ballot_id: ballotId,
+			voter_id: voterId,
+			new_choice: parsed.vote_choice,
+			reason: parsed.reason,
+			actor_user_id: user.id,
+			actor_role: actorRole
 		});
-	} catch (error) {
-		return handleError(error);
-	}
-};
+
+		const vote_counts = await ballotService.getVoteCounts(ballotId);
+		return json({ vote, vote_counts });
+	});
+
+// DELETE /api/ballots/[id]/voters/[voter_id] - Remove a voter from a ballot
+export const DELETE: RequestHandler = async (event) =>
+	withAuth(event, async ({ params, locals }, user) => {
+		const { id: ballotId, voter_id: voterId } = idSchema.parse(params);
+		if (!voterId) {
+			return json({ error: 'voter_id parameter is required' }, { status: 400 });
+		}
+		const ballotService = locals.resolve(ballotServiceKey);
+		const ballot = await ballotService.getBallot(ballotId, user.id);
+		if (!ballot) return json({ error: 'Ballot not found' }, { status: 404 });
+		await ballotService.removeVoterFromBallot(ballotId, voterId);
+		return json({ message: 'Voter removed from ballot successfully' });
+	});

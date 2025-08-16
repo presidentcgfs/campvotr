@@ -1,0 +1,34 @@
+import { ClientConfig, register as db } from '$lib/pbj';
+import { context } from '@pbinj/pbj';
+import { ballotServiceKey, BallotService } from './ballot-service';
+import { NotificationService, notificationServiceKey } from './notification-service';
+import { AuthorizationService, authorizationServiceKey } from './authorization';
+import { NotificationManager, notificationManagerKey } from './notifications';
+import { EmailService, emailServiceKey } from './email';
+import { envPBinJKey } from '@pbinj/pbj/env';
+import { env } from '$env/dynamic/private';
+import { BallotCron, ballotCronKey } from './ballot-cron';
+import { OrganizationService, organizationServiceKey } from './org';
+import { VoteService, voteServiceKey } from './vote-service';
+import { AdminVoteService, adminVoteServiceKey } from './vote.admin-service';
+import { UserService, userServiceKey } from './user-service';
+import { VoterService, voterServiceKey } from './voter-service';
+import { VoterListService, voterListServiceKey } from './voter-list';
+
+export function register(ctx = context) {
+	ctx.register(envPBinJKey, env as any);
+	db(ctx);
+	ctx.register(userServiceKey, UserService);
+	ctx.register(ballotServiceKey, BallotService);
+	ctx.register(notificationServiceKey, NotificationService);
+	ctx.register(authorizationServiceKey, AuthorizationService);
+	ctx.register(notificationManagerKey, NotificationManager);
+	ctx.register(emailServiceKey, EmailService);
+	ctx.register(organizationServiceKey, OrganizationService);
+	ctx.register(voteServiceKey, VoteService);
+	ctx.register(adminVoteServiceKey, AdminVoteService);
+	ctx.register(voterServiceKey, VoterService);
+	ctx.register(voterListServiceKey, VoterListService);
+	ctx.register(ballotCronKey, BallotCron);
+	return ctx;
+}

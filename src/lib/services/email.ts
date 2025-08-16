@@ -1,3 +1,5 @@
+import { pbjKey } from '@pbinj/pbj';
+import { envRequired } from '@pbinj/pbj/env';
 import { Resend } from 'resend';
 import { fileURLToPath } from 'url';
 
@@ -49,12 +51,12 @@ export interface BallotClosedEmailData {
 	voterEmail: string;
 	voterName?: string;
 }
-
+export const emailServiceKey = pbjKey<EmailService>('emailService');
 export class EmailService {
 	constructor(
-		private fromEmail: string,
-		private url: string,
-		apiKey: string,
+		private fromEmail: string = envRequired('FROM_EMAIL'),
+		private url: string = envRequired('PUBLIC_APP_URL'),
+		apiKey: string = envRequired('RESEND_API_KEY'),
 		private resend = apiKey
 			? new Resend(apiKey)
 			: (() => {

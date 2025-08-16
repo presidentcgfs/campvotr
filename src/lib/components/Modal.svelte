@@ -185,8 +185,16 @@
 		box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
 		width: 100%;
 		max-height: 85vh;
-		overflow: auto;
+		overflow: hidden;
 		outline: none;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+	}
+	.modal-body {
+		overflow-y: auto;
+		padding: 1rem;
+		flex: 1;
 	}
 	.modal_sm {
 		max-width: 28rem;
@@ -203,6 +211,7 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 1rem;
+		flex: 0;
 		border-bottom: 1px solid #e5e7eb;
 	}
 	.modal-title {
@@ -224,13 +233,11 @@
 		background: #f3f4f6;
 	}
 
-	.modal-body {
-		padding: 1rem;
-	}
 	.modal-footer {
 		display: flex;
 		justify-content: flex-end;
 		gap: 1rem;
+		flex: 0;
 		padding: 1rem;
 		border-top: 1px solid #e5e7eb;
 	}

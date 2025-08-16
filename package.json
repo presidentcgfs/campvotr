@@ -39,9 +39,12 @@
 		"vite": "^7.0.4"
 	},
 	"dependencies": {
+		"@pbinj/pbj": "^4.0.5",
 		"@supabase/ssr": "^0.6.1",
 		"@supabase/supabase-js": "^2.53.0",
 		"@sveltejs/adapter-vercel": "^5.8.1",
+		"@trpc/client": "^11.4.4",
+		"@trpc/server": "^11.4.4",
 		"@types/pg": "^8.15.5",
 		"carta-md": "^4.11.1",
 		"clsx": "^2.1.1",
