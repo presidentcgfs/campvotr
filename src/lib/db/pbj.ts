@@ -22,7 +22,11 @@ export class ClientConfig {
 }
 
 const drizzleFactory = (drizzleConfig = pbj(ClientConfig)) => {
-	return drizzle(postgres(drizzleConfig.url), { schema });
+	return drizzle(postgres(drizzleConfig.url), {
+		schema,
+		// Enable camelCase to snake_case mapping
+		casing: 'snake_case'
+	});
 };
 
 export const drizzleKey = pbjKey<ReturnType<typeof drizzleFactory>>('drizzle');

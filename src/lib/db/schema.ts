@@ -39,16 +39,25 @@ export const organizations = pgTable('organizations', {
 	id: uuid('id').primaryKey().defaultRandom(),
 	name: varchar('name', { length: 255 }).notNull(),
 	slug: varchar('slug', { length: 64 }).notNull().unique(),
-	logo_url: text('logo_url'),
-	primary_color: varchar('primary_color', { length: 7 }).notNull().default('#2563eb'),
-	secondary_color: varchar('secondary_color', { length: 7 }).notNull().default('#64748b'),
-	accent_color: varchar('accent_color', { length: 7 }).notNull().default('#22c55e'),
-	primary_domain: varchar('primary_domain', { length: 255 }).unique(),
+	logoUrl: text('logo_url').$name('logo_url'),
+	primaryColor: varchar('primary_color', { length: 7 })
+		.$name('primary_color')
+		.notNull()
+		.default('#2563eb'),
+	secondaryColor: varchar('secondary_color', { length: 7 })
+		.$name('secondary_color')
+		.notNull()
+		.default('#64748b'),
+	accentColor: varchar('accent_color', { length: 7 })
+		.$name('accent_color')
+		.notNull()
+		.default('#22c55e'),
+	primaryDomain: varchar('primary_domain', { length: 255 }).$name('primary_domain').unique(),
 	// Optional org-level tie-breaker designation (Supabase auth user id)
-	tie_breaker_user_id: uuid('tie_breaker_user_id'),
-	creator_id: uuid('creator_id'),
-	created_at: timestamp('created_at').defaultNow().notNull(),
-	updated_at: timestamp('updated_at').defaultNow().notNull()
+	tieBreakerUserId: uuid('tie_breaker_user_id').$name('tie_breaker_user_id'),
+	creatorId: uuid('creator_id').$name('creator_id'),
+	createdAt: timestamp('created_at').$name('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at').$name('updated_at').defaultNow().notNull()
 }).enableRLS();
 
 // Organization memberships
@@ -56,16 +65,17 @@ export const organizationMemberships = pgTable(
 	'organization_memberships',
 	{
 		id: uuid('id').primaryKey().defaultRandom(),
-		organization_id: uuid('organization_id')
+		organizationId: uuid('organization_id')
+			.$name('organization_id')
 			.references(() => organizations.id, { onDelete: 'cascade' })
 			.notNull(),
-		user_id: uuid('user_id').notNull(),
+		userId: uuid('user_id').$name('user_id').notNull(),
 		role: orgRoleEnum('role').notNull().default('MEMBER'),
-		created_at: timestamp('created_at').defaultNow().notNull(),
-		updated_at: timestamp('updated_at').defaultNow().notNull()
+		createdAt: timestamp('created_at').$name('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at').$name('updated_at').defaultNow().notNull()
 	},
 	(table) => ({
-		org_user_unique: uniqueIndex('org_user_unique').on(table.organization_id, table.user_id)
+		org_user_unique: uniqueIndex('org_user_unique').on(table.organizationId, table.userId)
 	})
 ).enableRLS();
 
@@ -74,17 +84,18 @@ export const organizationInvites = pgTable(
 	'organization_invites',
 	{
 		id: uuid('id').primaryKey().defaultRandom(),
-		organization_id: uuid('organization_id')
+		organizationId: uuid('organization_id')
+			.$name('organization_id')
 			.references(() => organizations.id, { onDelete: 'cascade' })
 			.notNull(),
 		email: varchar('email', { length: 255 }).notNull(),
 		role: orgRoleEnum('role').notNull().default('MEMBER'),
-		created_at: timestamp('created_at').defaultNow().notNull(),
-		accepted_at: timestamp('accepted_at'),
-		updated_at: timestamp('updated_at').defaultNow().notNull()
+		createdAt: timestamp('created_at').$name('created_at').defaultNow().notNull(),
+		acceptedAt: timestamp('accepted_at').$name('accepted_at'),
+		updatedAt: timestamp('updated_at').$name('updated_at').defaultNow().notNull()
 	},
 	(table) => ({
-		org_email_unique: uniqueIndex('org_email_unique').on(table.organization_id, table.email)
+		org_email_unique: uniqueIndex('org_email_unique').on(table.organizationId, table.email)
 	})
 ).enableRLS();
 
@@ -93,131 +104,153 @@ export const voters = pgTable('voters', {
 	id: uuid('id').primaryKey().defaultRandom(),
 	email: varchar('email', { length: 255 }).notNull().unique(),
 	name: varchar('name', { length: 255 }),
-	user_id: uuid('user_id'), // nullable for non-registered users
-	created_at: timestamp('created_at').defaultNow().notNull()
+	userId: uuid('user_id').$name('user_id'), // nullable for non-registered users
+	createdAt: timestamp('created_at').$name('created_at').defaultNow().notNull()
 }).enableRLS();
 
 export const voterLists = pgTable('voter_lists', {
 	id: uuid('id').primaryKey().defaultRandom(),
 	name: varchar('name', { length: 255 }).notNull(),
 	description: text('description'),
-	created_by: uuid('created_by').notNull(),
-	organization_id: uuid('organization_id').references(() => organizations.id, {
-		onDelete: 'cascade'
-	}),
-	created_at: timestamp('created_at').defaultNow().notNull(),
-	updated_at: timestamp('updated_at').defaultNow().notNull()
+	createdBy: uuid('created_by').$name('created_by').notNull(),
+	organizationId: uuid('organization_id')
+		.$name('organization_id')
+		.references(() => organizations.id, {
+			onDelete: 'cascade'
+		}),
+	createdAt: timestamp('created_at').$name('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at').$name('updated_at').defaultNow().notNull()
 }).enableRLS();
 
 export const voterListMembers = pgTable('voter_list_members', {
 	id: uuid('id').primaryKey().defaultRandom(),
-	voter_list_id: uuid('voter_list_id')
+	voterListId: uuid('voter_list_id')
+		.$name('voter_list_id')
 		.references(() => voterLists.id, { onDelete: 'cascade' })
 		.notNull(),
-	voter_id: uuid('voter_id')
+	voterId: uuid('voter_id')
+		.$name('voter_id')
 		.references(() => voters.id, { onDelete: 'cascade' })
 		.notNull(),
-	added_at: timestamp('added_at').defaultNow().notNull()
+	addedAt: timestamp('added_at').$name('added_at').defaultNow().notNull()
 }).enableRLS();
 
 export const ballots = pgTable('ballots', {
 	id: uuid('id').primaryKey().defaultRandom(),
 	title: varchar('title', { length: 255 }).notNull(),
 	description: text('description').notNull(),
-	creator_id: uuid('creator_id').notNull(),
-	organization_id: uuid('organization_id').references(() => organizations.id, {
-		onDelete: 'cascade'
-	}),
-	voter_list_id: uuid('voter_list_id').references(() => voterLists.id),
-	google_group_id: uuid('google_group_id'),
-	created_at: timestamp('created_at').defaultNow().notNull(),
-	voting_opens_at: timestamp('voting_opens_at').notNull(),
-	voting_closes_at: timestamp('voting_closes_at').notNull(),
-	voting_threshold: votingThresholdEnum('voting_threshold').default('simple_majority').notNull(),
-	threshold_percentage: decimal('threshold_percentage', { precision: 5, scale: 2 }),
-	quorum_required: integer('quorum_required'),
+	creatorId: uuid('creator_id').$name('creator_id').notNull(),
+	organizationId: uuid('organization_id')
+		.$name('organization_id')
+		.references(() => organizations.id, {
+			onDelete: 'cascade'
+		}),
+	voterListId: uuid('voter_list_id')
+		.$name('voter_list_id')
+		.references(() => voterLists.id),
+	googleGroupId: uuid('google_group_id').$name('google_group_id'),
+	createdAt: timestamp('created_at').$name('created_at').defaultNow().notNull(),
+	votingOpensAt: timestamp('voting_opens_at').$name('voting_opens_at').notNull(),
+	votingClosesAt: timestamp('voting_closes_at').$name('voting_closes_at').notNull(),
+	votingThreshold: votingThresholdEnum('voting_threshold')
+		.$name('voting_threshold')
+		.default('simple_majority')
+		.notNull(),
+	thresholdPercentage: decimal('threshold_percentage', { precision: 5, scale: 2 }).$name(
+		'threshold_percentage'
+	),
+	quorumRequired: integer('quorum_required').$name('quorum_required'),
 	status: ballotStatusEnum('status').default('draft').notNull(),
 	// Optional per-ballot override for tie-breaker (Supabase auth user id)
-	tie_breaker_user_id: uuid('tie_breaker_user_id'),
+	tieBreakerUserId: uuid('tie_breaker_user_id').$name('tie_breaker_user_id'),
 	// Audit of tie-break resolution
-	tie_break_resolved_at: timestamp('tie_break_resolved_at'),
-	tie_break_resolution_note: text('tie_break_resolution_note')
+	tieBreakResolvedAt: timestamp('tie_break_resolved_at').$name('tie_break_resolved_at'),
+	tieBreakResolutionNote: text('tie_break_resolution_note').$name('tie_break_resolution_note')
 }).enableRLS();
 
 export const ballotVoters = pgTable('ballot_voters', {
 	id: uuid('id').primaryKey().defaultRandom(),
-	ballot_id: uuid('ballot_id')
+	ballotId: uuid('ballot_id')
+		.$name('ballot_id')
 		.references(() => ballots.id, { onDelete: 'cascade' })
 		.notNull(),
-	voter_id: uuid('voter_id')
+	voterId: uuid('voter_id')
+		.$name('voter_id')
 		.references(() => voters.id, { onDelete: 'cascade' })
 		.notNull(),
-	added_at: timestamp('added_at').defaultNow().notNull()
+	addedAt: timestamp('added_at').$name('added_at').defaultNow().notNull()
 }).enableRLS();
 
 export const votes = pgTable(
 	'votes',
 	{
 		id: uuid('id').primaryKey().defaultRandom(),
-		ballot_id: uuid('ballot_id')
+		ballotId: uuid('ballot_id')
+			.$name('ballot_id')
 			.references(() => ballots.id, { onDelete: 'cascade' })
 			.notNull(),
-		voter_id: uuid('voter_id')
+		voterId: uuid('voter_id')
+			.$name('voter_id')
 			.references(() => voters.id, { onDelete: 'cascade' })
 			.notNull(),
-		vote_choice: voteChoiceEnum('vote_choice').notNull(),
+		voteChoice: voteChoiceEnum('vote_choice').$name('vote_choice').notNull(),
 
-		voted_at: timestamp('voted_at').defaultNow().notNull(),
-		updated_at: timestamp('updated_at').defaultNow().notNull()
+		votedAt: timestamp('voted_at').$name('voted_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at').$name('updated_at').defaultNow().notNull()
 	},
 	(table) => ({
-		votesUnique: uniqueIndex('votes_ballot_voter_unique').on(table.ballot_id, table.voter_id)
+		votesUnique: uniqueIndex('votes_ballot_voter_unique').on(table.ballotId, table.voterId)
 	})
 ).enableRLS();
 
 export const voteEvents = pgTable('vote_events', {
 	id: uuid('id').primaryKey().defaultRandom(),
-	ballot_id: uuid('ballot_id')
+	ballotId: uuid('ballot_id')
+		.$name('ballot_id')
 		.references(() => ballots.id, { onDelete: 'cascade' })
 		.notNull(),
-	voter_id: uuid('voter_id')
+	voterId: uuid('voter_id')
+		.$name('voter_id')
 		.references(() => voters.id, { onDelete: 'cascade' })
 		.notNull(),
-	actor_user_id: uuid('actor_user_id').notNull(),
-	actor_role: actorRoleEnum('actor_role').notNull(),
-	event_type: voteEventTypeEnum('event_type').notNull(),
-	previous_choice: voteChoiceEnum('previous_choice'),
-	new_choice: voteChoiceEnum('new_choice'),
+	actorUserId: uuid('actor_user_id').$name('actor_user_id').notNull(),
+	actorRole: actorRoleEnum('actor_role').$name('actor_role').notNull(),
+	eventType: voteEventTypeEnum('event_type').$name('event_type').notNull(),
+	previousChoice: voteChoiceEnum('previous_choice').$name('previous_choice'),
+	newChoice: voteChoiceEnum('new_choice').$name('new_choice'),
 	reason: text('reason'),
-	created_at: timestamp('created_at').defaultNow().notNull()
+	createdAt: timestamp('created_at').$name('created_at').defaultNow().notNull()
 }).enableRLS();
 
 export const tieBreakerVotes = pgTable(
 	'tie_breaker_votes',
 	{
 		id: uuid('id').primaryKey().defaultRandom(),
-		ballot_id: uuid('ballot_id')
+		ballotId: uuid('ballot_id')
+			.$name('ballot_id')
 			.references(() => ballots.id, { onDelete: 'cascade' })
 			.notNull(),
-		user_id: uuid('user_id').notNull(),
-		vote_choice: voteChoiceEnum('vote_choice').notNull(),
+		userId: uuid('user_id').$name('user_id').notNull(),
+		voteChoice: voteChoiceEnum('vote_choice').$name('vote_choice').notNull(),
 		note: text('note'),
-		ip_address: varchar('ip_address', { length: 64 }),
-		created_at: timestamp('created_at').defaultNow().notNull()
+		ipAddress: varchar('ip_address', { length: 64 }).$name('ip_address'),
+		createdAt: timestamp('created_at').$name('created_at').defaultNow().notNull()
 	},
 	(table) => ({
-		uniqueBallot: uniqueIndex('tie_breaker_votes_ballot_unique').on(table.ballot_id)
+		uniqueBallot: uniqueIndex('tie_breaker_votes_ballot_unique').on(table.ballotId)
 	})
 ).enableRLS();
 
 export const notifications = pgTable('notifications', {
 	id: uuid('id').primaryKey().defaultRandom(),
-	user_id: uuid('user_id').notNull(),
-	ballot_id: uuid('ballot_id').references(() => ballots.id, { onDelete: 'cascade' }),
+	userId: uuid('user_id').$name('user_id').notNull(),
+	ballotId: uuid('ballot_id')
+		.$name('ballot_id')
+		.references(() => ballots.id, { onDelete: 'cascade' }),
 	type: notificationTypeEnum('type').notNull(),
 	message: text('message').notNull(),
-	sent_at: timestamp('sent_at').defaultNow().notNull(),
-	read_at: timestamp('read_at')
+	sentAt: timestamp('sent_at').$name('sent_at').defaultNow().notNull(),
+	readAt: timestamp('read_at').$name('read_at')
 }).enableRLS();
 
 // Relations
@@ -235,14 +268,14 @@ export const organizationsRelations = relations(organizations, ({ many }) => ({
 
 export const organizationMembershipsRelations = relations(organizationMemberships, ({ one }) => ({
 	organization: one(organizations, {
-		fields: [organizationMemberships.organization_id],
+		fields: [organizationMemberships.organizationId],
 		references: [organizations.id]
 	})
 }));
 
 export const voterListsRelations = relations(voterLists, ({ one, many }) => ({
 	organization: one(organizations, {
-		fields: [voterLists.organization_id],
+		fields: [voterLists.organizationId],
 		references: [organizations.id]
 	}),
 	members: many(voterListMembers),
@@ -251,22 +284,22 @@ export const voterListsRelations = relations(voterLists, ({ one, many }) => ({
 
 export const voterListMembersRelations = relations(voterListMembers, ({ one }) => ({
 	voterList: one(voterLists, {
-		fields: [voterListMembers.voter_list_id],
+		fields: [voterListMembers.voterListId],
 		references: [voterLists.id]
 	}),
 	voter: one(voters, {
-		fields: [voterListMembers.voter_id],
+		fields: [voterListMembers.voterId],
 		references: [voters.id]
 	})
 }));
 
 export const ballotsRelations = relations(ballots, ({ one, many }) => ({
 	organization: one(organizations, {
-		fields: [ballots.organization_id],
+		fields: [ballots.organizationId],
 		references: [organizations.id]
 	}),
 	voterList: one(voterLists, {
-		fields: [ballots.voter_list_id],
+		fields: [ballots.voterListId],
 		references: [voterLists.id]
 	}),
 	ballotVoters: many(ballotVoters),
@@ -276,29 +309,29 @@ export const ballotsRelations = relations(ballots, ({ one, many }) => ({
 
 export const ballotVotersRelations = relations(ballotVoters, ({ one }) => ({
 	ballot: one(ballots, {
-		fields: [ballotVoters.ballot_id],
+		fields: [ballotVoters.ballotId],
 		references: [ballots.id]
 	}),
 	voter: one(voters, {
-		fields: [ballotVoters.voter_id],
+		fields: [ballotVoters.voterId],
 		references: [voters.id]
 	})
 }));
 
 export const votesRelations = relations(votes, ({ one }) => ({
 	ballot: one(ballots, {
-		fields: [votes.ballot_id],
+		fields: [votes.ballotId],
 		references: [ballots.id]
 	}),
 	voter: one(voters, {
-		fields: [votes.voter_id],
+		fields: [votes.voterId],
 		references: [voters.id]
 	})
 }));
 
 export const notificationsRelations = relations(notifications, ({ one }) => ({
 	ballot: one(ballots, {
-		fields: [notifications.ballot_id],
+		fields: [notifications.ballotId],
 		references: [ballots.id]
 	})
 }));

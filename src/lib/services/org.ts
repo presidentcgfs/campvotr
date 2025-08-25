@@ -14,11 +14,11 @@ export interface OrganizationContext {
 		id: string;
 		name: string;
 		slug: string;
-		logo_url: string | null;
-		primary_color: string;
-		secondary_color: string;
-		accent_color: string;
-		primary_domain?: string | null;
+		logoUrl: string | null;
+		primaryColor: string;
+		secondaryColor: string;
+		accentColor: string;
+		primaryDomain?: string | null;
 	};
 	role: OrgRole | null;
 }
@@ -41,8 +41,8 @@ export class OrganizationService extends BaseService {
 				role: organizationMemberships.role
 			})
 			.from(organizationMemberships)
-			.innerJoin(organizations, eq(organizationMemberships.organization_id, organizations.id))
-			.where(or(eq(organizationMemberships.user_id, userId), eq(organizations.creator_id, userId)));
+			.innerJoin(organizations, eq(organizationMemberships.organizationId, organizations.id))
+			.where(or(eq(organizationMemberships.userId, userId), eq(organizations.creatorId, userId)));
 		return rows;
 	}
 
@@ -61,7 +61,7 @@ export class OrganizationService extends BaseService {
 		const [org] = await this.db
 			.select()
 			.from(organizations)
-			.where(or(eq(organizations.primary_domain, clean), eq(organizations.primary_domain, host)))
+			.where(or(eq(organizations.primaryDomain, clean), eq(organizations.primaryDomain, host)))
 			.limit(1);
 		return org ?? null;
 	}
@@ -72,8 +72,8 @@ export class OrganizationService extends BaseService {
 			.from(organizationMemberships)
 			.where(
 				and(
-					eq(organizationMemberships.organization_id, organizationId),
-					eq(organizationMemberships.user_id, userId)
+					eq(organizationMemberships.organizationId, organizationId),
+					eq(organizationMemberships.userId, userId)
 				)
 			)
 			.limit(1);
@@ -128,8 +128,8 @@ export class OrganizationService extends BaseService {
 				await this.db
 					.select()
 					.from(organizationMemberships)
-					.leftJoin(organizations, eq(organizationMemberships.organization_id, organizations.id))
-					.where(eq(organizationMemberships.user_id, user.id))
+					.leftJoin(organizations, eq(organizationMemberships.organizationId, organizations.id))
+					.where(eq(organizationMemberships.userId, user.id))
 					.limit(1)
 			)?.[0]?.organizations;
 		}
@@ -146,10 +146,10 @@ export class OrganizationService extends BaseService {
 				id: org.id,
 				name: org.name,
 				slug: org.slug,
-				logo_url: org.logo_url ?? null,
-				primary_color: org.primary_color,
-				secondary_color: org.secondary_color,
-				accent_color: org.accent_color
+				logoUrl: org.logoUrl ?? null,
+				primaryColor: org.primaryColor,
+				secondaryColor: org.secondaryColor,
+				accentColor: org.accentColor
 			},
 			role
 		};
@@ -210,10 +210,10 @@ export class OrganizationService extends BaseService {
 				id: org.id,
 				name: org.name,
 				slug: org.slug,
-				logo_url: org.logo_url ?? null,
-				primary_color: org.primary_color,
-				secondary_color: org.secondary_color,
-				accent_color: org.accent_color
+				logoUrl: org.logoUrl ?? null,
+				primaryColor: org.primaryColor,
+				secondaryColor: org.secondaryColor,
+				accentColor: org.accentColor
 			},
 			role: m.role as OrgRole
 		};

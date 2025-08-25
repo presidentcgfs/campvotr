@@ -36,17 +36,17 @@ export class BallotService extends BaseService {
 			.values({
 				title: data.title,
 				description: data.description,
-				creator_id: data.creator_id,
-				organization_id: data.organization_id,
-				voting_opens_at: data.voting_opens_at,
-				voting_closes_at: data.voting_closes_at,
-				voting_threshold: data.voting_threshold || 'simple_majority',
-				threshold_percentage: data.threshold_percentage
+				creatorId: data.creator_id,
+				organizationId: data.organization_id,
+				votingOpensAt: data.voting_opens_at,
+				votingClosesAt: data.voting_closes_at,
+				votingThreshold: data.voting_threshold || 'simple_majority',
+				thresholdPercentage: data.threshold_percentage
 					? data.threshold_percentage.toString()
 					: null,
-				quorum_required: data.quorum_required,
-				voter_list_id: data.voter_list_id,
-				google_group_id: data.google_group_id,
+				quorumRequired: data.quorum_required,
+				voterListId: data.voter_list_id,
+				googleGroupId: data.google_group_id,
 				status: 'draft' as BallotStatus
 			})
 			.returning();
@@ -58,8 +58,8 @@ export class BallotService extends BaseService {
 					await this.db
 						.select()
 						.from(voterListMembers)
-						.innerJoin(voters, eq(voterListMembers.voter_id, voters.id))
-						.where(eq(voterListMembers.voter_list_id, data.voter_list_id))
+						.innerJoin(voters, eq(voterListMembers.voterId, voters.id))
+						.where(eq(voterListMembers.voterListId, data.voter_list_id))
 				).map((v) => v.voters.email)
 			);
 		}
@@ -76,8 +76,8 @@ export class BallotService extends BaseService {
 
 			// Add voters directly to the ballot
 			const ballotVoterInserts = voterRecords.map((voter) => ({
-				ballot_id: ballot.id,
-				voter_id: voter.id
+				ballotId: ballot.id,
+				voterId: voter.id
 			}));
 
 			await this.db.insert(ballotVoters).values(ballotVoterInserts);
@@ -90,19 +90,19 @@ export class BallotService extends BaseService {
 		// Return ballots the user created or is assigned to vote on, optionally scoped to organization
 
 		const ands = [
-			or(eq(voters.user_id, userId), eq(ballots.creator_id, userId), eq(authUsers.id, userId))
+			or(eq(voters.userId, userId), eq(ballots.creatorId, userId), eq(authUsers.id, userId))
 		];
 		if (organizationId) {
-			ands.push(eq(ballots.organization_id, organizationId));
+			ands.push(eq(ballots.organizationId, organizationId));
 		}
 		const eligibleBallots = this.db
-			.selectDistinctOn([ballots.id, ballots.created_at])
+			.selectDistinctOn([ballots.id, ballots.createdAt])
 			.from(ballots)
-			.leftJoin(ballotVoters, and(eq(ballots.id, ballotVoters.ballot_id)))
-			.leftJoin(voters, eq(ballotVoters.voter_id, voters.id))
+			.leftJoin(ballotVoters, and(eq(ballots.id, ballotVoters.ballotId)))
+			.leftJoin(voters, eq(ballotVoters.voterId, voters.id))
 			.leftJoin(authUsers, eq(voters.email, authUsers.email))
 			.where(ands.length === 1 ? ands[0] : and(...ands))
-			.orderBy(desc(ballots.created_at));
+			.orderBy(desc(ballots.createdAt));
 
 		if (limit) {
 			eligibleBallots.limit(limit);
@@ -116,13 +116,13 @@ export class BallotService extends BaseService {
 		const ballotQuery = this.db
 			.selectDistinctOn([ballots.id])
 			.from(ballots)
-			.leftJoin(ballotVoters, eq(ballots.id, ballotVoters.ballot_id))
-			.leftJoin(voters, eq(ballotVoters.voter_id, voters.id))
+			.leftJoin(ballotVoters, eq(ballots.id, ballotVoters.ballotId))
+			.leftJoin(voters, eq(ballotVoters.voterId, voters.id))
 			.leftJoin(authUsers, eq(voters.email, authUsers.email))
 			.where(
 				and(
 					eq(ballots.id, id),
-					or(eq(ballots.creator_id, userId), eq(voters.user_id, userId), eq(authUsers.id, userId))
+					or(eq(ballots.creatorId, userId), eq(voters.userId, userId), eq(authUsers.id, userId))
 				)
 			)
 			.limit(1);
@@ -150,16 +150,16 @@ export class BallotService extends BaseService {
 	async getRawVoteCounts(ballotId: string): Promise<VoteCounts> {
 		const result = await this.db
 			.select({
-				vote_choice: votes.vote_choice,
+				voteChoice: votes.voteChoice,
 				count: count()
 			})
 			.from(votes)
-			.where(eq(votes.ballot_id, ballotId))
-			.groupBy(votes.vote_choice);
+			.where(eq(votes.ballotId, ballotId))
+			.groupBy(votes.voteChoice);
 
 		const counts = result.reduce(
 			(ret, row) => {
-				ret[row.vote_choice] = row.count as number;
+				ret[row.voteChoice] = row.count as number;
 				ret.total += row.count as number;
 				return ret;
 			},
@@ -173,7 +173,7 @@ export class BallotService extends BaseService {
 		const [dv] = await this.db
 			.select()
 			.from(ballotVoters)
-			.where(and(eq(ballotVoters.ballot_id, ballotId), eq(ballotVoters.voter_id, userId)))
+			.where(and(eq(ballotVoters.ballotId, ballotId), eq(ballotVoters.voterId, userId)))
 			.limit(1);
 		return dv != null;
 	}
@@ -184,10 +184,10 @@ export class BallotService extends BaseService {
 		const [tb] = await this.db
 			.select()
 			.from(tieBreakerVotes)
-			.where(eq(tieBreakerVotes.ballot_id, ballotId))
+			.where(eq(tieBreakerVotes.ballotId, ballotId))
 			.limit(1);
 		if (tb) {
-			counts[tb.vote_choice] += 1;
+			counts[tb.voteChoice] += 1;
 			counts.total += 1;
 		}
 		return counts;
@@ -197,13 +197,13 @@ export class BallotService extends BaseService {
 		// Fetch ballot and org to resolve effective tie-breaker
 		const [b] = await this.db.select().from(ballots).where(eq(ballots.id, ballotId));
 		if (!b) return null;
-		if (b.tie_breaker_user_id) return b.tie_breaker_user_id;
+		if (b.tieBreakerUserId) return b.tieBreakerUserId;
 		// Resolve from organization default
 		const [org] = await this.db
 			.select()
 			.from(organizations)
-			.where(eq(organizations.id, b.organization_id!));
-		return org?.tie_breaker_user_id ?? null;
+			.where(eq(organizations.id, b.organizationId!));
+		return org?.tieBreakerUserId ?? null;
 	}
 
 	async calculateTieStatus(ballotId: string): Promise<{
@@ -218,10 +218,10 @@ export class BallotService extends BaseService {
 		const [tb] = await this.db
 			.select()
 			.from(tieBreakerVotes)
-			.where(eq(tieBreakerVotes.ballot_id, ballotId))
+			.where(eq(tieBreakerVotes.ballotId, ballotId))
 			.limit(1);
 		if (tb) {
-			counts[tb.vote_choice] += 1;
+			counts[tb.voteChoice] += 1;
 			counts.total += 1;
 		}
 		const entries: [VoteChoice, number][] = [
@@ -252,19 +252,19 @@ export class BallotService extends BaseService {
 		const [existing] = await this.db
 			.select()
 			.from(tieBreakerVotes)
-			.where(eq(tieBreakerVotes.ballot_id, params.ballotId))
+			.where(eq(tieBreakerVotes.ballotId, params.ballotId))
 			.limit(1);
 		if (existing) throw new Error('Tie already resolved');
 		await this.db.insert(tieBreakerVotes).values({
-			ballot_id: params.ballotId,
-			user_id: params.userId,
-			vote_choice: params.vote_choice,
+			ballotId: params.ballotId,
+			userId: params.userId,
+			voteChoice: params.vote_choice,
 			note: params.note ?? null,
-			ip_address: params.ip ?? null
+			ipAddress: params.ip ?? null
 		});
 		await this.db
 			.update(ballots)
-			.set({ tie_break_resolved_at: new Date(), tie_break_resolution_note: params.note ?? null })
+			.set({ tieBreakResolvedAt: new Date(), tieBreakResolutionNote: params.note ?? null })
 			.where(eq(ballots.id, params.ballotId));
 	}
 
@@ -272,16 +272,16 @@ export class BallotService extends BaseService {
 		return await this.db
 			.select()
 			.from(votes)
-			.where(eq(votes.ballot_id, ballotId))
-			.orderBy(desc(votes.voted_at));
+			.where(eq(votes.ballotId, ballotId))
+			.orderBy(desc(votes.votedAt));
 	}
 
 	async getUserVote(ballotId: string, userId: string) {
 		const [userVote] = await this.db
 			.select()
 			.from(votes)
-			.leftJoin(voters, eq(votes.voter_id, voters.id))
-			.where(and(eq(votes.ballot_id, ballotId), eq(voters.user_id, userId)))
+			.leftJoin(voters, eq(votes.voterId, voters.id))
+			.where(and(eq(votes.ballotId, ballotId), eq(voters.userId, userId)))
 			.limit(1);
 		return userVote?.votes;
 	}
@@ -290,7 +290,7 @@ export class BallotService extends BaseService {
 		const [vote] = await this.db
 			.select()
 			.from(votes)
-			.where(and(eq(votes.ballot_id, ballotId), eq(votes.voter_id, voterId)))
+			.where(and(eq(votes.ballotId, ballotId), eq(votes.voterId, voterId)))
 			.limit(1);
 
 		return vote;
@@ -340,13 +340,13 @@ export class BallotService extends BaseService {
 				voterName: voter.name,
 				ballotTitle: ballot.title,
 				ballotDescription: ballot.description,
-				votingOpensAt: new Date(ballot.voting_opens_at),
-				votingClosesAt: new Date(ballot.voting_closes_at),
+				votingOpensAt: new Date(ballot.votingOpensAt),
+				votingClosesAt: new Date(ballot.votingClosesAt),
 				ballotId: ballot.id,
-				isRegisteredUser: !!voter.user_id,
-				votingThreshold: ballot.voting_threshold,
-				thresholdPercentage: ballot.threshold_percentage
-					? parseFloat(ballot.threshold_percentage)
+				isRegisteredUser: !!voter.userId,
+				votingThreshold: ballot.votingThreshold,
+				thresholdPercentage: ballot.thresholdPercentage
+					? parseFloat(ballot.thresholdPercentage)
 					: undefined
 			}));
 
@@ -417,13 +417,13 @@ export class BallotService extends BaseService {
 
 		const requiredVotes = BallotService.calculateRequiredVotes(
 			totalEligibleVoters,
-			ballot.voting_threshold,
-			ballot.threshold_percentage ? parseFloat(ballot.threshold_percentage) : undefined
+			ballot.votingThreshold,
+			ballot.thresholdPercentage ? parseFloat(ballot.thresholdPercentage) : undefined
 		);
 
 		const thresholdPercentage = BallotService.getThresholdPercentage(
-			ballot.voting_threshold,
-			ballot.threshold_percentage ? parseFloat(ballot.threshold_percentage) : undefined
+			ballot.votingThreshold,
+			ballot.thresholdPercentage ? parseFloat(ballot.thresholdPercentage) : undefined
 		);
 
 		const totalVotes = voteCounts.yea + voteCounts.nay + voteCounts.abstain;
@@ -431,14 +431,14 @@ export class BallotService extends BaseService {
 			totalEligibleVoters > 0 ? (voteCounts.yea / totalEligibleVoters) * 100 : 0;
 
 		// Check quorum requirements
-		const quorumRequired = (ballot as any).quorum_required as number | null | undefined;
+		const quorumRequired = ballot.quorumRequired as number | null | undefined;
 		const quorumMet = quorumRequired ? totalVotes >= quorumRequired : true;
 		const quorumNeeded = quorumRequired ? Math.max(0, quorumRequired - totalVotes) : undefined;
 
 		// A ballot passes if it meets both the voting threshold AND quorum (if required)
 		const meetsThreshold = voteCounts.yea >= requiredVotes;
 		const isPassing = meetsThreshold && quorumMet;
-		const isOver = Date.now() > new Date((ballot as any).voting_closes_at).getTime();
+		const isOver = Date.now() > new Date(ballot.votingClosesAt).getTime();
 		return {
 			is_passing: isPassing,
 			is_over: isOver,
@@ -463,7 +463,7 @@ export class BallotService extends BaseService {
 		const [{ total = 0 }] = await this.db
 			.select({ total: count() })
 			.from(ballotVoters)
-			.where(eq(ballotVoters.ballot_id, ballotId))
+			.where(eq(ballotVoters.ballotId, ballotId))
 			.limit(1);
 
 		return total ?? 0;
@@ -477,14 +477,12 @@ export class BallotService extends BaseService {
 			const [existingAssociation] = await this.db
 				.select()
 				.from(ballotVoters)
-				.where(
-					and(eq(ballotVoters.ballot_id, ballotId), eq(ballotVoters.voter_id, existingVoter.id))
-				)
+				.where(and(eq(ballotVoters.ballotId, ballotId), eq(ballotVoters.voterId, existingVoter.id)))
 				.limit(1);
 			if (!existingAssociation) {
 				await this.db
 					.insert(ballotVoters)
-					.values({ ballot_id: ballotId, voter_id: existingVoter.id });
+					.values({ ballotId: ballotId, voterId: existingVoter.id });
 			}
 		}
 	}
@@ -492,7 +490,7 @@ export class BallotService extends BaseService {
 	async removeVoterFromBallot(ballotId: string, voterId: string) {
 		await this.db
 			.delete(ballotVoters)
-			.where(and(eq(ballotVoters.ballot_id, ballotId), eq(ballotVoters.voter_id, voterId)));
+			.where(and(eq(ballotVoters.ballotId, ballotId), eq(ballotVoters.voterId, voterId)));
 	}
 
 	async getBallotVoters(ballotId: string) {
@@ -502,11 +500,11 @@ export class BallotService extends BaseService {
 				id: voters.id,
 				email: voters.email,
 				name: voters.name,
-				user_id: voters.user_id
+				userId: voters.userId
 			})
 			.from(voters)
-			.innerJoin(ballotVoters, eq(ballotVoters.voter_id, voters.id))
-			.where(eq(ballotVoters.ballot_id, ballotId));
+			.innerJoin(ballotVoters, eq(ballotVoters.voterId, voters.id))
+			.where(eq(ballotVoters.ballotId, ballotId));
 
 		return allVoters;
 	}

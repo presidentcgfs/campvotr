@@ -21,7 +21,7 @@ export class VoteService {
 			.select()
 			.from(voters)
 			.leftJoin(authUsers, eq(voters.email, authUsers.email))
-			.where(or(eq(voters.user_id, userId), eq(authUsers.id, userId)))
+			.where(or(eq(voters.userId, userId), eq(authUsers.id, userId)))
 			.limit(1);
 		return voter;
 	}
@@ -53,7 +53,7 @@ export class VoteService {
 			const [vote] = await this.db
 				.update(votes)
 				.set({
-					vote_choice: data.vote_choice
+					voteChoice: data.vote_choice
 				})
 				.where(eq(votes.id, existingVote.id))
 				.returning();
@@ -65,7 +65,7 @@ export class VoteService {
 				actor_user_id: data.user_id,
 				actor_role: 'user',
 				event_type: 'cast',
-				previous_choice: existingVote.vote_choice,
+				previous_choice: existingVote.voteChoice,
 				new_choice: data.vote_choice
 			});
 
@@ -75,9 +75,9 @@ export class VoteService {
 			const [vote] = await this.db
 				.insert(votes)
 				.values({
-					ballot_id: data.ballot_id,
-					voter_id: userVoter.id,
-					vote_choice: data.vote_choice
+					ballotId: data.ballot_id,
+					voterId: userVoter.id,
+					voteChoice: data.vote_choice
 				})
 				.returning();
 

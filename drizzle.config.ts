@@ -9,5 +9,7 @@ export default defineConfig({
 		password: process.env.DATABASE_PASSWORD!
 	},
 	verbose: true,
-	strict: true
+	strict: true,
+	// Enable camelCase to snake_case mapping
+	casing: 'snake_case'
 });

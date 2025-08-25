@@ -14,7 +14,7 @@ export class VoterListService extends BaseService {
 		const [voterList] = await this.db
 			.select()
 			.from(voterLists)
-			.where(and(eq(voterLists.id, voterListId), eq(voterLists.created_by, userId)))
+			.where(and(eq(voterLists.id, voterListId), eq(voterLists.createdBy, userId)))
 			.limit(1);
 		return voterList ?? null;
 	}
@@ -41,8 +41,8 @@ export class VoterListService extends BaseService {
 				await this.db
 					.select()
 					.from(voterListMembers)
-					.leftJoin(voters, eq(voterListMembers.voter_id, voters.id))
-					.where(eq(voterListMembers.voter_list_id, voterListId))
+					.leftJoin(voters, eq(voterListMembers.voterId, voters.id))
+					.where(eq(voterListMembers.voterListId, voterListId))
 			).map((v) => [v.voters?.email!, v.voter_list_members.id] as const)
 		);
 
@@ -63,13 +63,13 @@ export class VoterListService extends BaseService {
 		const inserts = [];
 		for (const email of newEmails) {
 			const existingVoter = await this.findOrCreateVoter(email);
-			inserts.push({ voter_list_id: voterListId, voter_id: existingVoter.id });
+			inserts.push({ voterListId: voterListId, voterId: existingVoter.id });
 		}
 		await this.db.insert(voterListMembers).values(
 			await Promise.all(
 				Array.from(newEmails, async (email) => {
 					const existingVoter = await this.findOrCreateVoter(email);
-					return { voter_list_id: voterListId, voter_id: existingVoter.id };
+					return { voterListId: voterListId, voterId: existingVoter.id };
 				})
 			)
 		);
@@ -93,15 +93,15 @@ export class VoterListService extends BaseService {
 		const members = await this.db
 			.select()
 			.from(voterListMembers)
-			.where(eq(voterListMembers.voter_list_id, voterListId));
+			.where(eq(voterListMembers.voterListId, voterListId));
 		return members;
 	}
 	async findListsWithUser(userId: string) {
 		const lists = await this.db
 			.selectDistinctOn([voterLists.id])
 			.from(voterLists)
-			.leftJoin(voterListMembers, eq(voterLists.id, voterListMembers.voter_list_id))
-			.leftJoin(voters, eq(voterListMembers.voter_id, voters.id))
+			.leftJoin(voterListMembers, eq(voterLists.id, voterListMembers.voterListId))
+			.leftJoin(voters, eq(voterListMembers.voterId, voters.id))
 			.leftJoin(authUsers, eq(voters.email, authUsers.email))
 			.where(eq(authUsers.id, userId));
 		return lists.map((l) => l.voter_lists);
@@ -113,12 +113,12 @@ export class VoterListService extends BaseService {
 				id: voters.id,
 				email: voters.email,
 				name: voters.name,
-				user_id: voters.user_id,
-				added_at: voterListMembers.added_at
+				userId: voters.userId,
+				addedAt: voterListMembers.addedAt
 			})
 			.from(voterListMembers)
-			.innerJoin(voters, eq(voterListMembers.voter_id, voters.id))
-			.where(eq(voterListMembers.voter_list_id, voterListId))
-			.orderBy(voterListMembers.added_at);
+			.innerJoin(voters, eq(voterListMembers.voterId, voters.id))
+			.where(eq(voterListMembers.voterListId, voterListId))
+			.orderBy(voterListMembers.addedAt);
 	}
 }

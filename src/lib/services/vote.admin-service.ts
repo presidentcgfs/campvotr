@@ -17,17 +17,17 @@ export class AdminVoteService {
 		const detailedVotes = await this.db
 			.select({
 				id: votes.id,
-				vote_choice: votes.vote_choice,
-				voted_at: votes.voted_at,
-				updated_at: votes.updated_at,
-				voter_id: votes.voter_id,
+				voteChoice: votes.voteChoice,
+				votedAt: votes.votedAt,
+				updatedAt: votes.updatedAt,
+				voterId: votes.voterId,
 				voter_email: voters.email,
 				voter_name: voters.name
 			})
 			.from(votes)
-			.innerJoin(voters, eq(votes.voter_id, voters.id))
-			.where(eq(votes.ballot_id, ballotId))
-			.orderBy(desc(votes.voted_at));
+			.innerJoin(voters, eq(votes.voterId, voters.id))
+			.where(eq(votes.ballotId, ballotId))
+			.orderBy(desc(votes.votedAt));
 		return detailedVotes;
 	}
 
@@ -40,20 +40,20 @@ export class AdminVoteService {
 		const lastEvents = await this.db
 			.select()
 			.from(voteEvents)
-			.where(eq(voteEvents.ballot_id, ballotId))
-			.orderBy(desc(voteEvents.created_at));
+			.where(eq(voteEvents.ballotId, ballotId))
+			.orderBy(desc(voteEvents.createdAt));
 
 		const lastByVoter = new Map<string, (typeof lastEvents)[number]>();
 		for (const evt of lastEvents) {
-			if (!lastByVoter.has(evt.voter_id)) lastByVoter.set(evt.voter_id, evt);
+			if (!lastByVoter.has(evt.voterId)) lastByVoter.set(evt.voterId, evt);
 		}
 
 		const enriched = allVotes.map((v) => {
-			const evt = lastByVoter.get(v.voter_id);
+			const evt = lastByVoter.get(v.voterId);
 			return {
 				...v,
-				last_set_by_role: (evt as any)?.actor_role ?? 'user',
-				last_set_at: (evt as any)?.created_at ?? v.updated_at
+				last_set_by_role: (evt as any)?.actorRole ?? 'user',
+				last_set_at: (evt as any)?.createdAt ?? v.updatedAt
 			};
 		});
 
@@ -71,13 +71,13 @@ export class AdminVoteService {
 		reason?: string;
 	}) {
 		await this.db.insert(voteEvents).values({
-			ballot_id: data.ballot_id,
-			voter_id: data.voter_id,
-			actor_user_id: data.actor_user_id,
-			actor_role: data.actor_role as any,
-			event_type: data.event_type as any,
-			previous_choice: data.previous_choice ?? null,
-			new_choice: data.new_choice ?? null,
+			ballotId: data.ballot_id,
+			voterId: data.voter_id,
+			actorUserId: data.actor_user_id,
+			actorRole: data.actor_role as any,
+			eventType: data.event_type as any,
+			previousChoice: data.previous_choice ?? null,
+			newChoice: data.new_choice ?? null,
 			reason: data.reason ?? null
 		});
 	}
@@ -98,9 +98,9 @@ export class AdminVoteService {
 			const [vote] = await this.db
 				.insert(votes)
 				.values({
-					ballot_id: params.ballot_id,
-					voter_id: params.voter_id,
-					vote_choice: params.new_choice
+					ballotId: params.ballot_id,
+					voterId: params.voter_id,
+					voteChoice: params.new_choice
 				})
 				.returning();
 
@@ -118,7 +118,7 @@ export class AdminVoteService {
 			return vote;
 		}
 
-		if (existing.vote_choice === params.new_choice) {
+		if (existing.voteChoice === params.new_choice) {
 			if (params.reason) {
 				await this.recordVoteEvent({
 					ballot_id: params.ballot_id,
@@ -126,8 +126,8 @@ export class AdminVoteService {
 					actor_user_id: params.actor_user_id,
 					actor_role: params.actor_role,
 					event_type: 'override',
-					previous_choice: existing.vote_choice,
-					new_choice: existing.vote_choice,
+					previous_choice: existing.voteChoice,
+					new_choice: existing.voteChoice,
 					reason: params.reason
 				});
 			}
@@ -136,8 +136,8 @@ export class AdminVoteService {
 
 		const [updated] = await this.db
 			.update(votes)
-			.set({ vote_choice: params.new_choice, updated_at: new Date() })
-			.where(and(eq(votes.ballot_id, params.ballot_id), eq(votes.voter_id, params.voter_id)))
+			.set({ voteChoice: params.new_choice, updatedAt: new Date() })
+			.where(and(eq(votes.ballotId, params.ballot_id), eq(votes.voterId, params.voter_id)))
 			.returning();
 
 		await this.recordVoteEvent({
@@ -146,7 +146,7 @@ export class AdminVoteService {
 			actor_user_id: params.actor_user_id,
 			actor_role: params.actor_role,
 			event_type: 'override',
-			previous_choice: existing.vote_choice,
+			previous_choice: existing.voteChoice,
 			new_choice: params.new_choice,
 			reason: params.reason
 		});

@@ -9,7 +9,11 @@ if (!DATABASE_URL) {
 
 // Create the connection
 const client = postgres(DATABASE_URL);
-export const db = drizzle(client, { schema });
+export const db = drizzle(client, {
+	schema,
+	// Enable camelCase to snake_case mapping
+	casing: 'snake_case'
+});
 
 // Export schema for use in other files
 export * from './schema';

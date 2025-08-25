@@ -16,7 +16,15 @@ export class NotificationService {
 		type: 'new_ballot' | 'voting_reminder' | 'voting_closed' | 'voting_opened';
 		message: string;
 	}) {
-		const [notification] = await this.db.insert(notifications).values(data).returning();
+		const [notification] = await this.db
+			.insert(notifications)
+			.values({
+				userId: data.user_id,
+				ballotId: data.ballot_id,
+				type: data.type,
+				message: data.message
+			})
+			.returning();
 
 		return notification;
 	}
@@ -25,14 +33,14 @@ export class NotificationService {
 		return await this.db
 			.select()
 			.from(notifications)
-			.where(eq(notifications.user_id, userId))
-			.orderBy(desc(notifications.sent_at));
+			.where(eq(notifications.userId, userId))
+			.orderBy(desc(notifications.sentAt));
 	}
 
 	async markAsRead(id: string) {
 		const [notification] = await this.db
 			.update(notifications)
-			.set({ read_at: new Date() })
+			.set({ readAt: new Date() })
 			.where(eq(notifications.id, id))
 			.returning();
 
@@ -49,12 +57,12 @@ export class NotificationService {
 
 		// Create notifications for all eligible voters who have user accounts
 		const notificationData = eligibleVoters
-			.filter((voter) => voter.user_id) // Only notify users with accounts
+			.filter((voter) => voter.userId) // Only notify users with accounts
 			.map((voter) => ({
-				user_id: voter.user_id!,
-				ballot_id: ballotId,
+				userId: voter.userId!,
+				ballotId: ballotId,
 				type: 'voting_opened' as const,
-				message: `Voting has opened for "${(ballot as any).title}". Cast your vote before ${new Date((ballot as any).voting_closes_at).toLocaleString()}.`
+				message: `Voting has opened for "${(ballot as any).title}". Cast your vote before ${new Date((ballot as any).votingClosesAt).toLocaleString()}.`
 			}));
 
 		if (notificationData.length > 0) {
