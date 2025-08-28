@@ -14,6 +14,11 @@ import { AdminVoteService, adminVoteServiceKey } from './vote.admin-service';
 import { UserService, userServiceKey } from './user-service';
 import { VoterService, voterServiceKey } from './voter-service';
 import { VoterListService, voterListServiceKey } from './voter-list';
+import { FieldService, fieldServiceKey } from './field-service';
+import { RecurrenceRuleService, recurrenceRuleServiceKey } from './recurrence-rule-service';
+import { TimeSlotService, timeSlotServiceKey } from './timeslot-service';
+import { DrawSessionService, drawSessionServiceKey } from './draw-session-service';
+import { PickService, pickServiceKey } from './pick-service';
 
 export function register(ctx = context) {
 	ctx.register(envPBinJKey, env as any);
@@ -30,5 +35,10 @@ export function register(ctx = context) {
 	ctx.register(voterServiceKey, VoterService);
 	ctx.register(voterListServiceKey, VoterListService);
 	ctx.register(ballotCronKey, BallotCron);
+	ctx.register(fieldServiceKey, FieldService);
+	ctx.register(recurrenceRuleServiceKey, RecurrenceRuleService);
+	ctx.register(timeSlotServiceKey, TimeSlotService);
+	ctx.register(drawSessionServiceKey, DrawSessionService);
+	ctx.register(pickServiceKey, PickService);
 	return ctx;
 }

@@ -1,12 +1,27 @@
 import { pbjKey } from '@pbinj/pbj';
 import { BaseService } from './base-service';
 import { authUsers } from 'drizzle-orm/supabase';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { supabaseAdmin } from './auth';
 import { PUBLIC_SUPABASE_URL } from '$env/static/public';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { organizationMemberships } from '$lib/db/schema';
+
+/**
+ * UserService
+ * - Encapsulates user-related read/update operations and avatar storage.
+ * - Organization-scoped lookups use organizationId (not slug) and enforce membership.
+ * - Supabase auth metadata keys normalized: prefers `display_name` but also reads `displayName`.
+ */
 
 export const userServiceKey = pbjKey<UserService>('userService');
+
+/**
+ * Params for uploadAvatar.
+ * - userId: Supabase auth user ID
+ * - file: PNG/JPG/WEBP up to 2MB
+ * - supabaseClient: caller-scoped client used for storage upload
+ */
 
 export interface AvatarUploadParams {
 	userId: string;
@@ -14,16 +29,95 @@ export interface AvatarUploadParams {
 	supabaseClient: SupabaseClient;
 }
 
+/**
+ * Params for deleteAvatar.
+ * - userId: Supabase auth user ID
+ * - currentAvatarUrl: optional public avatar URL to remove from storage
+ * - supabaseClient: caller-scoped client used for storage delete
+ */
+
 export interface AvatarDeleteParams {
 	userId: string;
 	currentAvatarUrl?: string;
 	supabaseClient: SupabaseClient;
 }
 
+/**
+ * Service for retrieving/updating user profile and managing avatars.
+ * Note: Inject via pbj DI; route handlers should remain thin (auth/validation only).
+ */
+
 export class UserService extends BaseService {
+	/**
+	 * Retrieve an auth user row by userId.
+	 * Returns the row or undefined if no user exists.
+	 */
+
 	async fetchUser(userId: string) {
 		const [user] = await this.db.select().from(authUsers).where(eq(authUsers.id, userId)).limit(1);
 		return user;
+	}
+
+	// Find a member (user) of this organization by email (org-scoped)
+	/**
+	 * Find an organization member by email (org-scoped).
+	 * - Filters by organizationId and exact email on the auth users table.
+	 * - Returns `{ userId, displayName? }` or null if the email is not a member of the org.
+	 * - Display name is derived from auth metadata (`display_name` or `displayName`).
+	 */
+
+	async findMemberByEmail(
+		organizationId: string,
+		email: string
+	): Promise<{ userId: string; displayName?: string | null } | null> {
+		// Join memberships -> users and filter by org + email
+		// Note: Drizzle's authUsers.email typing may require a cast to satisfy eq()
+		// We only need the first match
+
+		const rows = await this.db
+			.select()
+			.from(organizationMemberships)
+			.leftJoin(authUsers, eq(organizationMemberships.userId, authUsers.id))
+			.where(
+				and(
+					eq(organizationMemberships.organizationId, organizationId),
+					eq(authUsers.email as any, email)
+				)
+			)
+			.limit(1);
+		const r: any = rows?.[0];
+		if (!r || !r.users) return null;
+		const meta = r.users?.raw_user_meta_data || {};
+		return { userId: r.users.id, displayName: meta.display_name ?? meta.displayName ?? null };
+	}
+
+	/**
+	 * Get the user's display name from Supabase auth metadata.
+	 * Returns null if unavailable or on error.
+	 */
+
+	async fetchDisplayName(userId: string): Promise<string | null> {
+		const { data, error } = await supabaseAdmin.auth.admin.getUser(userId);
+		if (error) return null;
+		const meta: any = data.user?.user_metadata || {};
+		return meta.display_name ?? meta.displayName ?? null;
+	}
+
+	/**
+	 * Update the user's display name in Supabase auth metadata.
+	 * Merges with existing metadata and stores under `display_name`.
+	 * Throws on failure.
+	 */
+
+	async updateDisplayName(userId: string, displayName: string): Promise<void> {
+		// Merge into metadata, preferring display_name
+		const { data, error } = await supabaseAdmin.auth.admin.getUser(userId);
+		if (error) throw new Error('Failed to fetch user');
+		const existing = (data.user?.user_metadata as any) || {};
+		const { error: updErr } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+			user_metadata: { ...existing, display_name: displayName }
+		});
+		if (updErr) throw new Error('Failed to update profile');
 	}
 
 	/**

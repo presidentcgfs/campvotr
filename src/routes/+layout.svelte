@@ -3,13 +3,17 @@
 	import Navigation from '$lib/components/Navigation.svelte';
 	import { AuthService } from '$lib/auth';
 	import { browser } from '$app/environment';
+
 	if (browser)
 		AuthService.onAuthStateChange((ess) => {
 			console.log('auth change', ess);
 		});
+
 	import { page } from '$app/state';
 	import { applyTheme } from '$lib/utils/theme';
+
 	$: org = page.data.organizationContext?.organization ?? null;
+
 	if (browser && org) {
 		applyTheme({
 			primaryColor: org.primary_color,

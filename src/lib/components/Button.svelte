@@ -28,6 +28,8 @@
 </svelte:element>
 
 <style>
+	@reference 'tailwindcss';
+
 	.has-icon {
 		gap: 0.5rem;
 		display: flex;
@@ -56,7 +58,7 @@
 		@apply text-white;
 		--button-bg: var(--color-primary);
 
-		&::hover {
+		&:hover {
 			@apply bg-blue-700;
 		}
 	}
