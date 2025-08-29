@@ -3,8 +3,9 @@ import { BaseService } from './base-service';
 import { drizzleKey } from '$lib/pbj';
 import { drawSessions, participants, picks } from '$lib/db/schema';
 import { and, asc, count, desc, eq } from 'drizzle-orm';
+import { calculateCurrentTurn, type Participant } from './turn-order';
 
-export type TurnStrategy = 'fixed' | 'randomized' | 'snake';
+export type TurnStrategy = 'fixed' | 'randomized' | 'snake' | 'random' | 'round_robin';
 export type SessionStatus = 'scheduled' | 'active' | 'paused' | 'completed' | 'cancelled';
 
 export interface CreateDrawSessionInput {
@@ -93,16 +94,33 @@ export class DrawSessionService extends BaseService {
 		return { session, participants: people, picks: existingPicks };
 	}
 
-	async computeFixedTurn(organizationId: string, sessionId: string) {
-		// Returns { roundNumber, turnNumber, participantId }
+	async computeCurrentTurn(organizationId: string, sessionId: string) {
+		// Returns { roundNumber, turnNumber, participantId } for any turn strategy
 		const state = await this.fetchSessionState(organizationId, sessionId);
 		if (!state) throw new Error('Session not found');
+
 		const totalPrev = state.picks.length;
-		const n = state.participants.length || 1;
-		const roundNumber = Math.floor(totalPrev / n) + 1;
-		const turnNumber = (totalPrev % n) + 1;
-		const participant = state.participants[turnNumber - 1];
-		return { roundNumber, turnNumber, participantId: participant?.id };
+		const participantsData: Participant[] = state.participants.map((p) => ({
+			id: p.id,
+			position: p.position
+		}));
+
+		const turn = calculateCurrentTurn(
+			state.session.turnStrategy as any,
+			participantsData,
+			totalPrev,
+			state.session.rounds,
+			Infinity // No slot limit for individual turn calculation
+		);
+
+		if (!turn) throw new Error('No more turns available');
+
+		return turn;
+	}
+
+	// Backward compatibility method
+	async computeFixedTurn(organizationId: string, sessionId: string) {
+		return this.computeCurrentTurn(organizationId, sessionId);
 	}
 	async listSessions(organizationId: string) {
 		const rows = await this.db

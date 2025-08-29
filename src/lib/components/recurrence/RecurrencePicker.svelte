@@ -1,22 +1,26 @@
+<script lang="ts" context="module">
+	export type EndCondition = 'never' | 'onDate' | 'afterCount';
+</script>
+
 <script lang="ts">
 	import { Select, Input, Timepicker, Datepicker, Button, Badge } from 'flowbite-svelte';
-	import { TrashBinOutline } from 'flowbite-svelte-icons';
+	import { TrashBinOutline, PlusOutline } from 'flowbite-svelte-icons';
 	import {
-		type Recurrence,
-		toRRuleTemporalOptions,
-		fromRRuleTemporalOptions,
-		validateTimeRange,
+		type RecurrenceMulti,
+		normalizeRecurrenceMulti,
+		validateTimeWindows,
 		validateInterval,
 		validateCount,
 		validateWeekdays
 	} from './recurrence-utils.js';
+	export let allowedEndConditions: EndCondition[] = ['never', 'onDate', 'afterCount'] as const;
 
-	export let value: Recurrence = {
+	export let value: RecurrenceMulti = {
 		frequency: 'once',
 		interval: 1,
-		startDate: new Date(),
-		endCondition: { type: 'never' },
-		timeRange: { start: '09:00', end: '10:00' },
+		startDate: new Date().toTemporalInstant(),
+		endCondition: { type: 'afterCount', count: 1 },
+		timeWindows: [{ start: '09:00', end: '10:00' }],
 		exceptions: [],
 		timezone: 'UTC'
 	};
@@ -29,9 +33,6 @@
 		{ value: 'monthly', name: 'Monthly' },
 		{ value: 'yearly', name: 'Yearly' }
 	];
-
-	// Re-export the utility functions for external use
-	export { toRRuleTemporalOptions, fromRRuleTemporalOptions } from './recurrence-utils.js';
 
 	// Weekday options
 	const weekdayOptions = [
@@ -50,44 +51,71 @@
 	// Date for adding exceptions
 	let newExceptionDate: Date | undefined = undefined;
 
+	// Helper variables for date conversion
+	let startDateForPicker: Date;
+	let endDateForPicker: Date | undefined;
+
+	// Reactive updates for date conversion
+	$: startDateForPicker = new Date(value.startDate.epochMilliseconds);
+	$: if (value.endCondition.type === 'onDate') {
+		endDateForPicker = new Date(value.endCondition.onDate.epochMilliseconds);
+	} else {
+		endDateForPicker = undefined;
+	}
+
+	// Update Temporal.Instant when picker dates change
+	$: if (startDateForPicker) {
+		value.startDate = startDateForPicker.toTemporalInstant();
+	}
+	$: if (endDateForPicker && value.endCondition.type === 'onDate') {
+		value.endCondition.onDate = endDateForPicker.toTemporalInstant();
+	}
+
 	// Reactive validation
 	$: {
 		validationErrors = {};
 
-		// Time range validation
-		const timeRangeError = validateTimeRange(value.timeRange.start, value.timeRange.end);
-		if (timeRangeError) validationErrors.timeRange = timeRangeError;
+		// Normalize the recurrence to ensure timeWindows exists
+		const normalized = normalizeRecurrenceMulti(value);
+
+		// Time windows validation
+		const timeWindowsError = validateTimeWindows(normalized.timeWindows);
+		if (timeWindowsError) validationErrors.timeWindows = timeWindowsError;
 
 		// Weekly weekdays validation
-		const weekdaysError = validateWeekdays(value.weekdays, value.frequency);
+		const weekdaysError = validateWeekdays(normalized.weekdays || [], normalized.frequency);
 		if (weekdaysError) validationErrors.weekdays = weekdaysError;
 
 		// Interval validation
-		const intervalError = validateInterval(value.interval);
+		const intervalError = validateInterval(normalized.interval);
 		if (intervalError) validationErrors.interval = intervalError;
 
 		// End condition validation
-		if (value.endCondition.type === 'onDate') {
-			const endDate = value.endCondition.onDate;
-			if (endDate < value.startDate) {
+		if (normalized.endCondition.type === 'onDate') {
+			const endDateMs = normalized.endCondition.onDate.epochMilliseconds;
+			const startDateMs = normalized.startDate.epochMilliseconds;
+			if (endDateMs < startDateMs) {
 				validationErrors.endDate = 'End date must be on or after start date';
 			}
 		}
 
-		if (value.endCondition.type === 'afterCount') {
-			const countError = validateCount(value.endCondition.count);
+		if (normalized.endCondition.type === 'afterCount') {
+			const countError = validateCount(normalized.endCondition.count);
 			if (countError) validationErrors.afterCount = countError;
 		}
 	}
 
-	// Handle frequency change
-	function onFrequencyChange() {
+	// Handle frequency change reactively
+	$: {
 		if (value.frequency !== 'weekly') {
-			value.weekdays = undefined;
+			if (value.weekdays) {
+				value.weekdays = undefined;
+				value = { ...value };
+			}
 		} else if (!value.weekdays) {
 			value.weekdays = [];
+			value = { ...value };
 		}
-		value = { ...value };
 	}
 
 	// Handle weekday toggle
@@ -107,7 +135,7 @@
 		if (type === 'never') {
 			value.endCondition = { type: 'never' };
 		} else if (type === 'onDate') {
-			value.endCondition = { type: 'onDate', onDate: new Date() };
+			value.endCondition = { type: 'onDate', onDate: new Date().toTemporalInstant() };
 		} else if (type === 'afterCount') {
 			value.endCondition = { type: 'afterCount', count: 1 };
 		}
@@ -118,7 +146,7 @@
 	function addException() {
 		if (newExceptionDate) {
 			if (!value.exceptions) value.exceptions = [];
-			value.exceptions.push(new Date(newExceptionDate));
+			value.exceptions.push(newExceptionDate.toTemporalInstant());
 			value = { ...value };
 			newExceptionDate = undefined;
 		}
@@ -129,6 +157,73 @@
 		if (value.exceptions) {
 			value.exceptions.splice(index, 1);
 			value = { ...value };
+		}
+	}
+
+	// Time window management
+	function addTimeWindow() {
+		if (!value.timeWindows) value.timeWindows = [];
+		if (value.timeWindows.length < 10) {
+			let newStart = '09:00';
+			let newEnd = '10:00';
+
+			// If there are existing windows, use the last one as reference
+			if (value.timeWindows.length > 0) {
+				const lastWindow = value.timeWindows[value.timeWindows.length - 1];
+
+				// Calculate duration of the last window
+				const [lastStartHour, lastStartMinute] = lastWindow.start.split(':').map(Number);
+				const [lastEndHour, lastEndMinute] = lastWindow.end.split(':').map(Number);
+				const lastDurationMinutes =
+					lastEndHour * 60 + lastEndMinute - (lastStartHour * 60 + lastStartMinute);
+
+				// Set new start to last window's end
+				newStart = lastWindow.end;
+
+				// Calculate new end time with same duration
+				const [startHour, startMinute] = newStart.split(':').map(Number);
+				const startTotalMinutes = startHour * 60 + startMinute;
+				const endTotalMinutes = startTotalMinutes + lastDurationMinutes;
+
+				// Make sure we don't go past 23:59
+				if (endTotalMinutes < 24 * 60) {
+					const endHour = Math.floor(endTotalMinutes / 60);
+					const endMinute = endTotalMinutes % 60;
+					newEnd = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+				} else {
+					// If it would go past midnight, just add 1 hour to the start
+					const endTotalMinutes = startTotalMinutes + 60;
+					if (endTotalMinutes < 24 * 60) {
+						const endHour = Math.floor(endTotalMinutes / 60);
+						const endMinute = endTotalMinutes % 60;
+						newEnd = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+					} else {
+						// If even 1 hour would go past midnight, keep it at the start time
+						newEnd = newStart;
+					}
+				}
+			}
+
+			value.timeWindows.push({ start: newStart, end: newEnd });
+			value = { ...value };
+		}
+	}
+
+	function removeTimeWindow(index: number) {
+		if (value.timeWindows && value.timeWindows.length > 1) {
+			value.timeWindows.splice(index, 1);
+			value = { ...value };
+		}
+	}
+
+	// Ensure timeWindows exists and normalize from timeRange if needed
+	$: {
+		if (!value.timeWindows || value.timeWindows.length === 0) {
+			if (value.timeRange) {
+				value.timeWindows = [value.timeRange];
+			} else {
+				value.timeWindows = [{ start: '09:00', end: '10:00' }];
+			}
 		}
 	}
 
@@ -148,20 +243,20 @@
 <div class="space-y-4">
 	<!-- Frequency Selection -->
 	<div>
-		<label class="mb-2 block text-sm font-medium">Frequency</label>
-		<Select items={frequencyOptions} bind:value={value.frequency} on:change={onFrequencyChange} />
+		<label for="frequency-select" class="mb-2 block text-sm font-medium">Frequency</label>
+		<Select id="frequency-select" items={frequencyOptions} bind:value={value.frequency} />
 	</div>
 
 	<!-- Interval (for recurring frequencies) -->
 	{#if value.frequency !== 'once'}
 		<div>
-			<label class="mb-2 block text-sm font-medium">
+			<label for="interval-input" class="mb-2 block text-sm font-medium">
 				Repeat every
 				{#if intervalUnit}
 					<span class="text-gray-600">{intervalUnit}</span>
 				{/if}
 			</label>
-			<Input type="number" bind:value={value.interval} min={1} class="w-full" />
+			<Input id="interval-input" type="number" bind:value={value.interval} min={1} class="w-full" />
 			{#if validationErrors.interval}
 				<p class="mt-1 text-sm text-red-600">{validationErrors.interval}</p>
 			{/if}
@@ -195,20 +290,62 @@
 	<!-- Start Date -->
 	<div>
 		<label for="startDate" class="mb-2 block text-sm font-medium">Start Date</label>
-		<Datepicker id="startDate" bind:value={value.startDate} class="w-full" />
+		<Datepicker id="startDate" bind:value={startDateForPicker} class="w-full" />
 	</div>
 
-	<!-- Time Range -->
+	<!-- Time Windows -->
 	<div>
-		<label for="timeRange" class="mb-2 block text-sm font-medium">Time Range</label>
-		<Timepicker
-			id="timeRange"
-			type="range"
-			bind:value={value.timeRange.start}
-			bind:endValue={value.timeRange.end}
-		/>
-		{#if validationErrors.timeRange}
-			<p class="mt-1 text-sm text-red-600">{validationErrors.timeRange}</p>
+		<div class="mb-2 flex items-center justify-between">
+			<label class="text-sm font-medium">Time Windows</label>
+			<button
+				type="button"
+				class="flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+				on:click={addTimeWindow}
+				disabled={!value.timeWindows || value.timeWindows.length >= 10}
+			>
+				<PlusOutline class="h-3 w-3" />
+				Add Window
+			</button>
+		</div>
+
+		<div class="space-y-3">
+			{#each value.timeWindows || [] as window, index}
+				<div class="flex items-center gap-2 rounded border p-3">
+					<div class="flex-1">
+						<div class="flex flex-wrap justify-between gap-2">
+							<div class="flex flex-wrap gap-2">
+								<div>
+									<label for="start-{index}" class="mb-1 block text-xs text-gray-600">Start</label>
+									<Timepicker id="start-{index}" bind:value={window.start} />
+								</div>
+								<div>
+									<label for="end-{index}" class="mb-1 block text-xs text-gray-600">End</label>
+									<Timepicker id="end-{index}" bind:value={window.end} />
+								</div>
+							</div>
+							{#if value.timeWindows && value.timeWindows.length > 1}
+								<div class="flex flex-1 items-center justify-end">
+									<Button
+										outline
+										pill
+										size="xs"
+										color="red"
+										type="button"
+										class="!p-2"
+										onclick={() => removeTimeWindow(index)}
+									>
+										<TrashBinOutline size="xs" />
+									</Button>
+								</div>
+							{/if}
+						</div>
+					</div>
+				</div>
+			{/each}
+		</div>
+
+		{#if validationErrors.timeWindows}
+			<p class="mt-1 text-sm text-red-600">{validationErrors.timeWindows}</p>
 		{/if}
 	</div>
 
@@ -217,56 +354,61 @@
 		<div>
 			<label for="endCondition" class="mb-2 block text-sm font-medium">Ends</label>
 			<div class="space-y-2">
-				<label class="flex items-center gap-2">
-					<input
-						id="endCondition"
-						type="radio"
-						name="endCondition"
-						value="never"
-						checked={value.endCondition.type === 'never'}
-						on:change={() => onEndConditionChange('never')}
-					/>
-					Never
-				</label>
-
-				<div class="flex items-center gap-2">
-					<label class="flex items-center gap-2">
+				{#if allowedEndConditions.includes('never')}
+					<label class="flex items-center gap-2 py-3">
 						<input
 							id="endCondition"
 							type="radio"
 							name="endCondition"
-							value="onDate"
-							checked={value.endCondition.type === 'onDate'}
-							on:change={() => onEndConditionChange('onDate')}
+							value="never"
+							checked={value.endCondition.type === 'never'}
+							on:change={() => onEndConditionChange('never')}
 						/>
-						On
+						Never
 					</label>
-					{#if value.endCondition.type === 'onDate'}
-						<Datepicker bind:value={value.endCondition.onDate} class="flex-1" />
-					{/if}
-				</div>
-				{#if validationErrors.endDate}
-					<p class="ml-6 text-sm text-red-600">{validationErrors.endDate}</p>
 				{/if}
-
-				<div class="flex items-center gap-2">
-					<label class="flex items-center gap-2">
-						<input
-							type="radio"
-							name="endCondition"
-							value="afterCount"
-							checked={value.endCondition.type === 'afterCount'}
-							on:change={() => onEndConditionChange('afterCount')}
-						/>
-						After
-					</label>
-					{#if value.endCondition.type === 'afterCount'}
-						<Input type="number" bind:value={value.endCondition.count} min={1} class="w-20" />
-						<span class="text-sm text-gray-600">occurrences</span>
+				{#if allowedEndConditions.includes('onDate')}
+					<div class="flex items-center gap-2">
+						<label class="flex items-center gap-2 py-3">
+							<input
+								id="endCondition"
+								type="radio"
+								name="endCondition"
+								value="onDate"
+								class="py-2"
+								checked={value.endCondition.type === 'onDate'}
+								on:change={() => onEndConditionChange('onDate')}
+							/>
+							On
+						</label>
+						{#if value.endCondition.type === 'onDate'}
+							<Datepicker bind:value={endDateForPicker} class="flex-1" />
+						{/if}
+					</div>
+					{#if validationErrors.endDate}
+						<p class="ml-6 text-sm text-red-600">{validationErrors.endDate}</p>
 					{/if}
-				</div>
-				{#if validationErrors.afterCount}
-					<p class="ml-6 text-sm text-red-600">{validationErrors.afterCount}</p>
+				{/if}
+				{#if allowedEndConditions.includes('afterCount')}
+					<div class="flex items-center gap-2">
+						<label class="flex items-center gap-2 py-3">
+							<input
+								type="radio"
+								name="endCondition"
+								value="afterCount"
+								checked={value.endCondition.type === 'afterCount'}
+								on:change={() => onEndConditionChange('afterCount')}
+							/>
+							After
+						</label>
+						{#if value.endCondition.type === 'afterCount'}
+							<Input type="number" bind:value={value.endCondition.count} min={1} class="w-20" />
+							<span class="text-sm text-gray-600">occurrences</span>
+						{/if}
+					</div>
+					{#if validationErrors.afterCount}
+						<p class="ml-6 text-sm text-red-600">{validationErrors.afterCount}</p>
+					{/if}
 				{/if}
 			</div>
 		</div>
@@ -283,7 +425,7 @@
 			<div class="mt-2 flex flex-wrap gap-2">
 				{#each value.exceptions as exception, index}
 					<Badge color="gray" class="flex items-center gap-1">
-						{formatDate(exception)}
+						{formatDate(new Date(exception.epochMilliseconds))}
 						<button
 							type="button"
 							on:click={() => removeException(index)}

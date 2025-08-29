@@ -1,7 +1,9 @@
 import { RRuleTemporal } from 'rrule-temporal';
 import {
-	toRRuleTemporalOptions,
-	fromRRuleTemporalOptions,
+	toRRules,
+	fromRRules,
+	generateTimeSlotsMulti,
+	type RecurrenceMulti,
 	type Recurrence
 } from './recurrence-utils.js';
 import { Temporal, Intl, toTemporalInstant } from '@js-temporal/polyfill';
@@ -13,34 +15,31 @@ declare global {
 
 Date.prototype.toTemporalInstant = toTemporalInstant;
 /**
- * Example usage of RecurrencePicker with rrule-temporal library
+ * Example usage of RecurrencePicker with rrule-temporal library using RecurrenceMulti
  */
 
-// Example 1: Weekly recurrence every Tuesday and Thursday at 2:30 PM for 10 occurrences
-const weeklyRecurrence: Recurrence = {
+// Example 1: Weekly recurrence with multiple time windows
+const weeklyRecurrenceMulti: RecurrenceMulti = {
 	frequency: 'weekly',
 	interval: 1,
 	weekdays: ['TU', 'TH'],
-	startDate: new Date('2025-01-01T14:30:00.000Z'),
+	startDate: new Date('2025-01-01T14:30:00.000Z').toTemporalInstant(),
 	endCondition: { type: 'afterCount', count: 10 },
-	timeRange: { start: '14:30', end: '15:30' },
+	timeWindows: [
+		{ start: '09:00', end: '10:00' },
+		{ start: '14:30', end: '15:30' }
+	],
 	exceptions: [],
 	timezone: 'UTC'
 };
 
-// Convert to rrule-temporal options
-const rruleOptions = toRRuleTemporalOptions(weeklyRecurrence);
-console.log('RRule Options:', rruleOptions);
+// Convert to multiple rrule strings
+const rules = toRRules(weeklyRecurrenceMulti);
+console.log('Generated Rules:', rules);
 
-// Create RRuleTemporal instance
-const rule = new RRuleTemporal(rruleOptions);
-
-// Generate all occurrences
-const occurrences = rule.all();
-console.log(
-	'Generated occurrences:',
-	occurrences.map((dt) => dt.toString())
-);
+// Generate time slots with start/end times
+const timeSlots = generateTimeSlotsMulti(weeklyRecurrenceMulti);
+console.log('Generated time slots:', timeSlots.slice(0, 5)); // Show first 5
 
 // Example 2: Daily recurrence ending on a specific date
 const dailyRecurrence: Recurrence = {
@@ -98,62 +97,29 @@ const backToUI = fromRRuleTemporalOptions(rruleOptions);
 console.log('Converted back to UI format:', backToUI);
 
 /**
- * Helper function to generate time slots for a field draw session
+ * Helper function to generate time slots for backward compatibility
+ * @deprecated Use generateTimeSlotsMulti from recurrence-utils.ts instead
  */
 export function generateTimeSlots(recurrence: Recurrence): Date[] {
 	try {
-		// Create RRULE string format that rrule-temporal expects
-		const dtstart = recurrence.startDate.toISOString().replace(/[-:]/g, '').slice(0, 15);
-		const tzid = recurrence.timezone || 'UTC';
+		// Convert old Recurrence to RecurrenceMulti format
+		const recurrenceMulti: RecurrenceMulti = {
+			frequency: recurrence.frequency,
+			interval: recurrence.interval,
+			weekdays: recurrence.weekdays,
+			startDate: recurrence.startDate.toTemporalInstant(),
+			endCondition:
+				recurrence.endCondition.type === 'onDate'
+					? { type: 'onDate', onDate: recurrence.endCondition.onDate.toTemporalInstant() }
+					: recurrence.endCondition,
+			timeWindows: [recurrence.timeRange],
+			exceptions: recurrence.exceptions?.map((date) => date.toTemporalInstant()),
+			timezone: recurrence.timezone
+		};
 
-		let rruleString = `DTSTART;TZID=${tzid}:${dtstart}\nRRULE:`;
-
-		// Build RRULE parts
-		const ruleParts: string[] = [];
-
-		// Frequency
-		const freq = recurrence.frequency === 'once' ? 'DAILY' : recurrence.frequency.toUpperCase();
-		ruleParts.push(`FREQ=${freq}`);
-
-		// Interval
-		if (recurrence.interval > 1) {
-			ruleParts.push(`INTERVAL=${recurrence.interval}`);
-		}
-
-		// Count or Until
-		if (recurrence.endCondition.type === 'afterCount') {
-			ruleParts.push(`COUNT=${recurrence.endCondition.count}`);
-		} else if (recurrence.endCondition.type === 'onDate') {
-			const until =
-				recurrence.endCondition.onDate.toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
-			ruleParts.push(`UNTIL=${until}`);
-		}
-
-		// For 'once' frequency, always set count to 1
-		if (recurrence.frequency === 'once') {
-			ruleParts.push('COUNT=1');
-		}
-
-		// Weekdays for weekly frequency
-		if (recurrence.frequency === 'weekly' && recurrence.weekdays?.length) {
-			ruleParts.push(`BYDAY=${recurrence.weekdays.join(',')}`);
-		}
-
-		// Time constraints
-		if (recurrence.timeRange.start) {
-			const [hour, minute] = recurrence.timeRange.start.split(':').map(Number);
-			ruleParts.push(`BYHOUR=${hour}`);
-			ruleParts.push(`BYMINUTE=${minute}`);
-		}
-
-		rruleString += ruleParts.join(';');
-
-		// Create rule from string
-		const rule = new RRuleTemporal({ rruleString });
-
-		// Generate all occurrences and convert to regular Date objects
-		const occurrences = rule.all();
-		return occurrences.map((zdt) => new Date(zdt.toInstant().epochMilliseconds));
+		// Use the new multi-window function
+		const timeSlots = generateTimeSlotsMulti(recurrenceMulti);
+		return timeSlots.map((slot) => slot.start);
 	} catch (error) {
 		console.error('Error generating time slots:', error);
 		return [];

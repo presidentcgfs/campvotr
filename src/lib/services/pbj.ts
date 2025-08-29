@@ -10,6 +10,7 @@ import { env } from '$env/dynamic/private';
 import { BallotCron, ballotCronKey } from './ballot-cron';
 import { OrganizationService, organizationServiceKey } from './org';
 import { VoteService, voteServiceKey } from './vote-service';
+import { DrawSessionAdminService, drawSessionAdminServiceKey } from './draw-session-admin-service';
 import { AdminVoteService, adminVoteServiceKey } from './vote.admin-service';
 import { UserService, userServiceKey } from './user-service';
 import { VoterService, voterServiceKey } from './voter-service';
@@ -36,6 +37,7 @@ export function register(ctx = context) {
 	ctx.register(voterListServiceKey, VoterListService);
 	ctx.register(ballotCronKey, BallotCron);
 	ctx.register(fieldServiceKey, FieldService);
+	ctx.register(drawSessionAdminServiceKey, DrawSessionAdminService);
 	ctx.register(recurrenceRuleServiceKey, RecurrenceRuleService);
 	ctx.register(timeSlotServiceKey, TimeSlotService);
 	ctx.register(drawSessionServiceKey, DrawSessionService);

@@ -32,13 +32,13 @@ export class PickService extends BaseService {
 		if (!session) throw new Error('Session not found');
 		if (session.status !== 'active') throw new Error('Session not active');
 
-		// Validate participant and turn (fixed/basic). TODO: snake/randomized support.
+		// Validate participant and turn (supports all strategies including snake)
 		const state = await this.drawSvc.fetchSessionState(organizationId, sessionId);
 		if (!state) throw new Error('Session not found');
 		const participant = state.participants.find((p) => p.userId === userId);
 		if (!participant) throw new Error('Not a participant');
 
-		const { roundNumber, turnNumber, participantId } = await this.drawSvc.computeFixedTurn(
+		const { roundNumber, turnNumber, participantId } = await this.drawSvc.computeCurrentTurn(
 			organizationId,
 			sessionId
 		);

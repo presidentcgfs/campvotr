@@ -3,22 +3,23 @@
 
 	import RecurrencePicker from '$lib/components/recurrence/RecurrencePicker.svelte';
 	import {
-		toRRuleTemporalOptions,
-		type Recurrence,
-		getRecurrenceDescription
+		toRRules,
+		type RecurrenceMulti,
+		getRecurrenceMultiDescription,
+		generateTimeSlotsMulti
 	} from '$lib/components/recurrence/recurrence-utils.js';
-	import { generateTimeSlots } from '$lib/components/recurrence/example.js';
+
 	import { Card, Badge, Alert, Tabs, TabItem } from 'flowbite-svelte';
 	import { CalendarMonthOutline, ClockOutline, InfoCircleOutline } from 'flowbite-svelte-icons';
 
 	// Demo recurrence configurations
-	let currentRecurrence: Recurrence = {
+	let currentRecurrence: RecurrenceMulti = {
 		frequency: 'weekly',
 		interval: 1,
 		weekdays: ['MO', 'WE', 'FR'],
-		startDate: new Date(),
+		startDate: new Date().toTemporalInstant(),
 		endCondition: { type: 'afterCount', count: 5 },
-		timeRange: { start: '09:00', end: '10:00' },
+		timeWindows: [{ start: '09:00', end: '10:00' }],
 		exceptions: [],
 		timezone: 'UTC'
 	};
@@ -29,15 +30,15 @@
 	let error = '';
 
 	// Preset configurations for quick testing
-	const presets: Array<{ name: string; config: Recurrence }> = [
+	const presets: Array<{ name: string; config: RecurrenceMulti }> = [
 		{
 			name: 'Daily Standup',
 			config: {
 				frequency: 'daily',
 				interval: 1,
-				startDate: new Date(),
+				startDate: new Date().toTemporalInstant(),
 				endCondition: { type: 'afterCount', count: 10 },
-				timeRange: { start: '09:00', end: '09:30' },
+				timeWindows: [{ start: '09:00', end: '09:30' }],
 				exceptions: [],
 				timezone: 'UTC'
 			}
@@ -48,9 +49,9 @@
 				frequency: 'weekly',
 				interval: 1,
 				weekdays: ['TU'],
-				startDate: new Date(),
+				startDate: new Date().toTemporalInstant(),
 				endCondition: { type: 'never' },
-				timeRange: { start: '14:00', end: '15:00' },
+				timeWindows: [{ start: '14:00', end: '15:00' }],
 				exceptions: [],
 				timezone: 'UTC'
 			}
@@ -60,12 +61,16 @@
 			config: {
 				frequency: 'monthly',
 				interval: 1,
-				startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 15),
+				startDate: new Date(
+					new Date().getFullYear(),
+					new Date().getMonth(),
+					15
+				).toTemporalInstant(),
 				endCondition: {
 					type: 'onDate',
-					onDate: new Date(new Date().getFullYear() + 1, 11, 31)
+					onDate: new Date(new Date().getFullYear() + 1, 11, 31).toTemporalInstant()
 				},
-				timeRange: { start: '10:00', end: '12:00' },
+				timeWindows: [{ start: '10:00', end: '12:00' }],
 				exceptions: [],
 				timezone: 'UTC'
 			}
@@ -75,9 +80,9 @@
 			config: {
 				frequency: 'once',
 				interval: 1,
-				startDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Next week
+				startDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toTemporalInstant(), // Next week
 				endCondition: { type: 'never' },
-				timeRange: { start: '18:00', end: '20:00' },
+				timeWindows: [{ start: '18:00', end: '20:00' }],
 				exceptions: [],
 				timezone: 'UTC'
 			}
@@ -88,61 +93,16 @@
 		try {
 			error = '';
 
-			// Generate time slots using rrule-temporal
-			generatedSlots = generateTimeSlots(currentRecurrence);
+			// Generate time slots using the new multi-window function
+			const timeSlots = generateTimeSlotsMulti(currentRecurrence);
+			generatedSlots = timeSlots.map((slot) => slot.start);
 
-			// Get the RRULE string representation using the same logic as generateTimeSlots
-			const dtstart = currentRecurrence.startDate.toISOString().replace(/[-:]/g, '').slice(0, 15);
-			const tzid = currentRecurrence.timezone || 'UTC';
-
-			let ruleString = `DTSTART;TZID=${tzid}:${dtstart}\nRRULE:`;
-
-			// Build RRULE parts
-			const ruleParts: string[] = [];
-
-			// Frequency
-			const freq =
-				currentRecurrence.frequency === 'once'
-					? 'DAILY'
-					: currentRecurrence.frequency.toUpperCase();
-			ruleParts.push(`FREQ=${freq}`);
-
-			// Interval
-			if (currentRecurrence.interval > 1) {
-				ruleParts.push(`INTERVAL=${currentRecurrence.interval}`);
-			}
-
-			// Count or Until
-			if (currentRecurrence.endCondition.type === 'afterCount') {
-				ruleParts.push(`COUNT=${currentRecurrence.endCondition.count}`);
-			} else if (currentRecurrence.endCondition.type === 'onDate') {
-				const until =
-					currentRecurrence.endCondition.onDate.toISOString().replace(/[-:]/g, '').slice(0, 15) +
-					'Z';
-				ruleParts.push(`UNTIL=${until}`);
-			}
-
-			// For 'once' frequency, always set count to 1
-			if (currentRecurrence.frequency === 'once') {
-				ruleParts.push('COUNT=1');
-			}
-
-			// Weekdays for weekly frequency
-			if (currentRecurrence.frequency === 'weekly' && currentRecurrence.weekdays?.length) {
-				ruleParts.push(`BYDAY=${currentRecurrence.weekdays.join(',')}`);
-			}
-
-			// Time constraints
-			if (currentRecurrence.timeRange.start) {
-				const [hour, minute] = currentRecurrence.timeRange.start.split(':').map(Number);
-				ruleParts.push(`BYHOUR=${hour}`);
-				ruleParts.push(`BYMINUTE=${minute}`);
-			}
-
-			rruleString = ruleString + ruleParts.join(';');
+			// Get the RRULE strings for all time windows
+			const rules = toRRules(currentRecurrence);
+			rruleString = rules.map((rule) => rule.rruleString).join('\n\n');
 
 			// Get human-readable description
-			description = getRecurrenceDescription(currentRecurrence);
+			description = getRecurrenceMultiDescription(currentRecurrence);
 		} catch (err) {
 			console.error('Error generating slots:', err);
 			error = err instanceof Error ? err.message : 'Unknown error occurred';
@@ -303,10 +263,10 @@
 							</Card>
 
 							<Card>
-								<h3 class="mb-3 text-lg font-medium">RRule Temporal Options</h3>
+								<h3 class="mb-3 text-lg font-medium">Generated Rules</h3>
 								<pre
 									class="max-h-64 overflow-x-auto rounded-lg border bg-gray-100 p-3 text-xs">{JSON.stringify(
-										toRRuleTemporalOptions(currentRecurrence),
+										toRRules(currentRecurrence),
 										null,
 										2
 									)}</pre>

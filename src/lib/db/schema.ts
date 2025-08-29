@@ -7,7 +7,9 @@ import {
 	pgEnum,
 	decimal,
 	integer,
-	uniqueIndex
+	uniqueIndex,
+	json,
+	date
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -321,7 +323,13 @@ export const drawSessionStatusEnum = pgEnum('draw_session_status', [
 	'cancelled'
 ]);
 
-export const turnStrategyEnum = pgEnum('turn_strategy', ['fixed', 'randomized', 'snake']);
+export const turnStrategyEnum = pgEnum('turn_strategy', [
+	'fixed',
+	'randomized',
+	'snake',
+	'random',
+	'round_robin'
+]);
 export const recurrenceFrequencyEnum = pgEnum('recurrence_frequency', [
 	'daily',
 	'weekly',
@@ -410,6 +418,8 @@ export const drawSessions = pgTable('draw_sessions', {
 	rounds: integer('rounds'), // null => until no slots remain
 	pickTimeoutSec: integer('pick_timeout_sec').default(60).notNull(),
 	startsAtUtc: timestamp('starts_at_utc').notNull(),
+	startDate: date('start_date').notNull(),
+	endDate: date('end_date').notNull(),
 	createdByUserId: uuid('created_by_user_id').notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at').defaultNow().notNull()
@@ -456,6 +466,58 @@ export const picks = pgTable(
 		turnIdx: uniqueIndex('unique_turn').on(table.drawSessionId, table.roundNumber, table.turnNumber)
 	})
 ).enableRLS();
+
+// New tables for RecurrenceMulti-based draw sessions
+export const drawSessionParticipants = pgTable('draw_session_participants', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	drawSessionId: uuid('draw_session_id')
+		.references(() => drawSessions.id, { onDelete: 'cascade' })
+		.notNull(),
+	email: varchar('email', { length: 255 }).notNull(),
+	role: varchar('role', { length: 32 }).default('member').notNull(),
+	createdAt: timestamp('created_at').defaultNow().notNull()
+}).enableRLS();
+
+export const drawSchedules = pgTable('draw_schedules', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	drawSessionId: uuid('draw_session_id')
+		.references(() => drawSessions.id, { onDelete: 'cascade' })
+		.notNull(),
+	recurrence: json('recurrence').notNull(), // RecurrenceMulti as JSON
+	timezone: varchar('timezone', { length: 64 }).default('UTC').notNull(),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at').defaultNow().notNull()
+}).enableRLS();
+
+export const drawScheduleFields = pgTable(
+	'draw_schedule_fields',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		drawScheduleId: uuid('draw_schedule_id')
+			.references(() => drawSchedules.id, { onDelete: 'cascade' })
+			.notNull(),
+		fieldId: uuid('field_id')
+			.references(() => fields.id, { onDelete: 'cascade' })
+			.notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull()
+	},
+	(table) => ({
+		uniqueScheduleField: uniqueIndex('unique_draw_schedule_field').on(
+			table.drawScheduleId,
+			table.fieldId
+		)
+	})
+).enableRLS();
+
+export const drawScheduleRules = pgTable('draw_schedule_rules', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	drawScheduleId: uuid('draw_schedule_id')
+		.references(() => drawSchedules.id, { onDelete: 'cascade' })
+		.notNull(),
+	rruleString: text('rrule_string').notNull(),
+	durationMinutes: integer('duration_minutes').notNull(),
+	createdAt: timestamp('created_at').defaultNow().notNull()
+}).enableRLS();
 
 export const auditLogs = pgTable('audit_logs', {
 	id: uuid('id').primaryKey().defaultRandom(),

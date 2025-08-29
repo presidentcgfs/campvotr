@@ -2,6 +2,7 @@ import type { RequestEvent } from '@sveltejs/kit';
 import { getUser } from './auth';
 import { json, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
+import { z as z4 } from 'zod/v4';
 import type { User } from '@supabase/supabase-js';
 import type * as Kit from '@sveltejs/kit';
 
@@ -59,7 +60,9 @@ export async function withAuth(
 
 		return await handler(event, user);
 	} catch (error) {
-		if (error instanceof z.ZodError) {
+		if (error instanceof z4.ZodError) {
+			return json({ error: 'Validation error', details: z.flattenError(error) }, { status: 400 });
+		} else if (error instanceof z.ZodError) {
 			return json({ error: 'Validation error', details: z.flattenError(error) }, { status: 400 });
 		}
 		console.error('Auth middleware error:', error);

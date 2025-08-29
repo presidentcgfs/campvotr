@@ -57,6 +57,13 @@
       "when": 1756158210910,
       "tag": "0008_mixed_scourge",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1756425257189,
+      "tag": "0009_wooden_multiple_man",
+      "breakpoints": true
     }
   ]
 }
