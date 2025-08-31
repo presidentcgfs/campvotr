@@ -3,7 +3,8 @@
 </script>
 
 <script lang="ts">
-	import { Select, Input, Timepicker, Datepicker, Button, Badge } from 'flowbite-svelte';
+	import '../../../polyfill';
+	import { Select, Input, Timepicker, Datepicker, Button, Badge, Radio } from 'flowbite-svelte';
 	import { TrashBinOutline, PlusOutline } from 'flowbite-svelte-icons';
 	import {
 		type RecurrenceMulti,
@@ -11,14 +12,15 @@
 		validateTimeWindows,
 		validateInterval,
 		validateCount,
-		validateWeekdays
+		validateWeekdays,
+		toDate
 	} from './recurrence-utils.js';
 	export let allowedEndConditions: EndCondition[] = ['never', 'onDate', 'afterCount'] as const;
-
+	export let path: string = '';
 	export let value: RecurrenceMulti = {
 		frequency: 'once',
 		interval: 1,
-		startDate: new Date().toTemporalInstant(),
+		startDate: new Date(),
 		endCondition: { type: 'afterCount', count: 1 },
 		timeWindows: [{ start: '09:00', end: '10:00' }],
 		exceptions: [],
@@ -56,19 +58,11 @@
 	let endDateForPicker: Date | undefined;
 
 	// Reactive updates for date conversion
-	$: startDateForPicker = new Date(value.startDate.epochMilliseconds);
+	$: startDateForPicker = toDate(value.startDate) ?? new Date();
 	$: if (value.endCondition.type === 'onDate') {
-		endDateForPicker = new Date(value.endCondition.onDate.epochMilliseconds);
+		endDateForPicker = toDate(value.endCondition.onDate);
 	} else {
 		endDateForPicker = undefined;
-	}
-
-	// Update Temporal.Instant when picker dates change
-	$: if (startDateForPicker) {
-		value.startDate = startDateForPicker.toTemporalInstant();
-	}
-	$: if (endDateForPicker && value.endCondition.type === 'onDate') {
-		value.endCondition.onDate = endDateForPicker.toTemporalInstant();
 	}
 
 	// Reactive validation
@@ -92,9 +86,9 @@
 
 		// End condition validation
 		if (normalized.endCondition.type === 'onDate') {
-			const endDateMs = normalized.endCondition.onDate.epochMilliseconds;
-			const startDateMs = normalized.startDate.epochMilliseconds;
-			if (endDateMs < startDateMs) {
+			const endDateMs = normalized.endCondition.onDate;
+			const startDateMs = normalized.startDate;
+			if ((toDate(endDateMs)?.getTime() ?? 0) < (toDate(startDateMs)?.getTime() ?? 0)) {
 				validationErrors.endDate = 'End date must be on or after start date';
 			}
 		}
@@ -133,20 +127,40 @@
 	// Handle end condition change
 	function onEndConditionChange(type: string) {
 		if (type === 'never') {
-			value.endCondition = { type: 'never' };
+			value = { ...value, endCondition: { type } };
 		} else if (type === 'onDate') {
-			value.endCondition = { type: 'onDate', onDate: new Date().toTemporalInstant() };
+			value = {
+				...value,
+				endCondition: {
+					type,
+					onDate: new Date(
+						startDateForPicker.getTime() +
+							(value.frequency === 'daily'
+								? 14
+								: value.frequency === 'weekly'
+									? 30
+									: value.frequency === 'monthly'
+										? 90
+										: value.frequency === 'yearly'
+											? 800
+											: 7) *
+								24 *
+								60 *
+								60 *
+								1000
+					)
+				}
+			};
 		} else if (type === 'afterCount') {
-			value.endCondition = { type: 'afterCount', count: 1 };
+			value = { ...value, endCondition: { type, count: 1 } };
 		}
-		value = { ...value };
 	}
 
 	// Add exception date
 	function addException() {
 		if (newExceptionDate) {
 			if (!value.exceptions) value.exceptions = [];
-			value.exceptions.push(newExceptionDate.toTemporalInstant());
+			value.exceptions.push(newExceptionDate);
 			value = { ...value };
 			newExceptionDate = undefined;
 		}
@@ -218,7 +232,7 @@
 
 	// Ensure timeWindows exists and normalize from timeRange if needed
 	$: {
-		if (!value.timeWindows || value.timeWindows.length === 0) {
+		if (!value.timeWindows?.length) {
 			if (value.timeRange) {
 				value.timeWindows = [value.timeRange];
 			} else {
@@ -236,7 +250,7 @@
 
 	// Format date for display
 	function formatDate(date: Date): string {
-		return date.toLocaleDateString();
+		return toDate(date)?.toLocaleDateString() ?? '';
 	}
 </script>
 
@@ -244,7 +258,12 @@
 	<!-- Frequency Selection -->
 	<div>
 		<label for="frequency-select" class="mb-2 block text-sm font-medium">Frequency</label>
-		<Select id="frequency-select" items={frequencyOptions} bind:value={value.frequency} />
+		<Select
+			id="frequency-select"
+			name="{path}.frequency"
+			items={frequencyOptions}
+			bind:value={value.frequency}
+		/>
 	</div>
 
 	<!-- Interval (for recurring frequencies) -->
@@ -256,7 +275,14 @@
 					<span class="text-gray-600">{intervalUnit}</span>
 				{/if}
 			</label>
-			<Input id="interval-input" type="number" bind:value={value.interval} min={1} class="w-full" />
+			<Input
+				id="interval-input"
+				type="number"
+				name="{path}.interval"
+				bind:value={value.interval}
+				min={1}
+				class="w-full"
+			/>
 			{#if validationErrors.interval}
 				<p class="mt-1 text-sm text-red-600">{validationErrors.interval}</p>
 			{/if}
@@ -269,16 +295,22 @@
 			<label class="mb-2 block text-sm font-medium">Repeat on</label>
 			<div class="flex gap-2">
 				{#each weekdayOptions as day}
-					<button
-						type="button"
-						class="flex h-8 w-8 items-center justify-center rounded-full border text-sm font-medium transition-colors
-							{value.weekdays?.includes(day.code)
+					<label
+						class="pointer flex h-8 w-8 items-center justify-center rounded-full border text-sm font-medium transition-colors {value.weekdays?.includes(
+							day.code
+						)
 							? 'border-blue-500 bg-blue-500 text-white'
 							: 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
-						on:click={() => toggleWeekday(day.code)}
 					>
+						<input
+							type="checkbox"
+							class="height-0 width-0 fixed appearance-none opacity-0"
+							bind:group={value.weekdays}
+							name="{path}.weekdays"
+							value={day.code}
+						/>
 						{day.label}
-					</button>
+					</label>
 				{/each}
 			</div>
 			{#if validationErrors.weekdays}
@@ -297,15 +329,15 @@
 	<div>
 		<div class="mb-2 flex items-center justify-between">
 			<label class="text-sm font-medium">Time Windows</label>
-			<button
+			<Button
 				type="button"
-				class="flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs text-gray-700 hover:bg-gray-200 disabled:opacity-50"
-				on:click={addTimeWindow}
+				size="xs"
+				onclick={addTimeWindow}
 				disabled={!value.timeWindows || value.timeWindows.length >= 10}
 			>
-				<PlusOutline class="h-3 w-3" />
+				<PlusOutline />
 				Add Window
-			</button>
+			</Button>
 		</div>
 
 		<div class="space-y-3">
@@ -316,11 +348,19 @@
 							<div class="flex flex-wrap gap-2">
 								<div>
 									<label for="start-{index}" class="mb-1 block text-xs text-gray-600">Start</label>
-									<Timepicker id="start-{index}" bind:value={window.start} />
+									<Timepicker
+										name="{path}.timeWindows[{index}].start"
+										id="start-{index}"
+										bind:value={window.start}
+									/>
 								</div>
 								<div>
 									<label for="end-{index}" class="mb-1 block text-xs text-gray-600">End</label>
-									<Timepicker id="end-{index}" bind:value={window.end} />
+									<Timepicker
+										name="{path}.timeWindows[{index}].start"
+										id="end-{index}"
+										bind:value={window.end}
+									/>
 								</div>
 							</div>
 							{#if value.timeWindows && value.timeWindows.length > 1}
@@ -356,13 +396,12 @@
 			<div class="space-y-2">
 				{#if allowedEndConditions.includes('never')}
 					<label class="flex items-center gap-2 py-3">
-						<input
+						<Radio
 							id="endCondition"
-							type="radio"
 							name="endCondition"
 							value="never"
 							checked={value.endCondition.type === 'never'}
-							on:change={() => onEndConditionChange('never')}
+							onchange={() => onEndConditionChange('never')}
 						/>
 						Never
 					</label>
@@ -370,14 +409,13 @@
 				{#if allowedEndConditions.includes('onDate')}
 					<div class="flex items-center gap-2">
 						<label class="flex items-center gap-2 py-3">
-							<input
+							<Radio
 								id="endCondition"
-								type="radio"
 								name="endCondition"
 								value="onDate"
 								class="py-2"
 								checked={value.endCondition.type === 'onDate'}
-								on:change={() => onEndConditionChange('onDate')}
+								onchange={() => onEndConditionChange('onDate')}
 							/>
 							On
 						</label>
@@ -392,12 +430,11 @@
 				{#if allowedEndConditions.includes('afterCount')}
 					<div class="flex items-center gap-2">
 						<label class="flex items-center gap-2 py-3">
-							<input
-								type="radio"
+							<Radio
 								name="endCondition"
 								value="afterCount"
 								checked={value.endCondition.type === 'afterCount'}
-								on:change={() => onEndConditionChange('afterCount')}
+								onchange={() => onEndConditionChange('afterCount')}
 							/>
 							After
 						</label>
@@ -425,7 +462,7 @@
 			<div class="mt-2 flex flex-wrap gap-2">
 				{#each value.exceptions as exception, index}
 					<Badge color="gray" class="flex items-center gap-1">
-						{formatDate(new Date(exception.epochMilliseconds))}
+						{formatDate(exception)}
 						<button
 							type="button"
 							on:click={() => removeException(index)}

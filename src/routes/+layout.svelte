@@ -1,32 +1,39 @@
-<script>
+<script lang="ts">
 	import '../app.css';
 	import Navigation from '$lib/components/Navigation.svelte';
+	import { Footer } from 'flowbite-svelte';
 	import { AuthService } from '$lib/auth';
 	import { browser } from '$app/environment';
+
+	import { page } from '$app/state';
+	import { applyTheme } from '$lib/utils/theme';
+	import type { Snippet } from 'svelte';
+
+	const { children } = $props<{ children: Snippet }>();
 
 	if (browser)
 		AuthService.onAuthStateChange((ess) => {
 			console.log('auth change', ess);
 		});
 
-	import { page } from '$app/state';
-	import { applyTheme } from '$lib/utils/theme';
+	const org = $state(page.data.organizationContext?.organization ?? null);
 
-	$: org = page.data.organizationContext?.organization ?? null;
-
-	if (browser && org) {
-		applyTheme({
-			primaryColor: org.primary_color,
-			secondaryColor: org.secondary_color,
-			accentColor: org.accent_color
-		});
-	}
+	$effect(() => {
+		if (browser && org) {
+			applyTheme({
+				primaryColor: org.primary_color,
+				secondaryColor: org.secondary_color,
+				accentColor: org.accent_color
+			});
+		}
+	});
 </script>
 
 <Navigation />
 
-<main>
-	<slot />
+<main class="mx-auto max-w-screen-2xl pt-[70px]">
+	{@render children()}
+	<Footer>hi feet.</Footer>
 </main>
 
 <style>

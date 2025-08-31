@@ -13,6 +13,12 @@
 		</div>
 	{/if}
 
+	{#if $page.form?.success}
+		<div class="rounded border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800">
+			Session updated successfully!
+		</div>
+	{/if}
+
 	<FieldSchedulesForm {data} />
 
 	<div class="card">
@@ -31,6 +37,7 @@
 							<th class="py-2 pr-4">Rounds</th>
 							<th class="py-2 pr-4">Timeout</th>
 							<th class="py-2 pr-4">Starts</th>
+							<th class="py-2 pr-4">Actions</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -44,6 +51,22 @@
 								<td class="py-2 pr-4"
 									>{s.startsAtUtc ? new Date(s.startsAtUtc).toUTCString() : '—'}</td
 								>
+								<td class="py-2 pr-4">
+									<div class="flex gap-2">
+										<a
+											href="/admin/draw-sessions/{s.id}/edit"
+											class="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700"
+										>
+											Edit
+										</a>
+										<a
+											href="/admin/draw-sessions/{s.id}/schedule"
+											class="rounded bg-green-600 px-2 py-1 text-xs text-white hover:bg-green-700"
+										>
+											Schedule
+										</a>
+									</div>
+								</td>
 							</tr>
 						{/each}
 					</tbody>

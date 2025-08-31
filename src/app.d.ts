@@ -3,6 +3,7 @@
 import type { OrganizationContext } from '$lib/services/org';
 import type { Session, User, SupabaseClient } from '@supabase/supabase-js';
 import { Context } from '@pbinj/pbj';
+import type { Temporal } from '@js-temporal/polyfill';
 
 declare global {
 	namespace App {
@@ -17,6 +18,9 @@ declare global {
 			session: Session | null;
 			user: User | null;
 		}
+	}
+	interface Date {
+		toTemporalInstant(): Temporal.Instant;
 	}
 }
 

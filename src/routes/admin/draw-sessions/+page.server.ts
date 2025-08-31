@@ -13,6 +13,7 @@ export const load = withAuthRedirect<PageServerLoad>(
 		const fsvc = resolve(fieldServiceKey);
 		const sessions = await svc.listSessions(orgId);
 		const fields = await fsvc.listFields(orgId);
+
 		return { orgId, sessions, fields } as const;
 	}
 );

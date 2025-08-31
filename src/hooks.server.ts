@@ -4,6 +4,7 @@ import { context } from '@pbinj/pbj';
 import '@pbinj/pbj/scope';
 import { register } from '$lib/services/pbj';
 import { organizationServiceKey } from '$lib/services/org';
+import './polyfill';
 
 const ctx = register(context);
 export const handle: Handle = async ({ event, resolve }) => {

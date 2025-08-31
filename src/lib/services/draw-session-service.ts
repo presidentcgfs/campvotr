@@ -1,7 +1,14 @@
 import { pbj, pbjKey } from '@pbinj/pbj';
 import { BaseService } from './base-service';
 import { drizzleKey } from '$lib/pbj';
-import { drawSessions, participants, picks } from '$lib/db/schema';
+import {
+	drawScheduleFields,
+	drawSchedules,
+	drawSessions,
+	fields,
+	participants,
+	picks
+} from '$lib/db/schema';
 import { and, asc, count, desc, eq } from 'drizzle-orm';
 import { calculateCurrentTurn, type Participant } from './turn-order';
 
@@ -19,10 +26,38 @@ export interface CreateDrawSessionInput {
 	participants: { userId: string; role?: string }[];
 }
 
+export interface UpdateDrawSessionInput {
+	name?: string;
+	turnStrategy?: TurnStrategy;
+	rounds?: number | null;
+	pickTimeoutSec?: number;
+	startsAtUtc?: Date;
+	startDate?: string;
+	endDate?: string;
+}
+
 export const drawSessionServiceKey = pbjKey<DrawSessionService>('drawSessionService');
 export class DrawSessionService extends BaseService {
 	constructor(db = pbj(drizzleKey)) {
 		super(db);
+	}
+
+	async loadSession(sessionId: string) {
+		const session = await this.db.query.drawSessions.findFirst({
+			where: eq(drawSessions.id, sessionId),
+			with: {
+				schedules: {
+					with: {
+						fields: {
+							with: {
+								field: true
+							}
+						}
+					}
+				}
+			}
+		});
+		return session;
 	}
 
 	async createSession(input: CreateDrawSessionInput) {
@@ -66,6 +101,25 @@ export class DrawSessionService extends BaseService {
 		const [row] = await this.db
 			.update(drawSessions)
 			.set({ status, updatedAt: new Date() })
+			.where(and(eq(drawSessions.organizationId, organizationId), eq(drawSessions.id, sessionId)))
+			.returning();
+		return row ?? null;
+	}
+
+	async updateSession(organizationId: string, sessionId: string, input: UpdateDrawSessionInput) {
+		const updateData: any = { updatedAt: new Date() };
+
+		if (input.name !== undefined) updateData.name = input.name;
+		if (input.turnStrategy !== undefined) updateData.turnStrategy = input.turnStrategy;
+		if (input.rounds !== undefined) updateData.rounds = input.rounds;
+		if (input.pickTimeoutSec !== undefined) updateData.pickTimeoutSec = input.pickTimeoutSec;
+		if (input.startsAtUtc !== undefined) updateData.startsAtUtc = input.startsAtUtc;
+		if (input.startDate !== undefined) updateData.startDate = input.startDate;
+		if (input.endDate !== undefined) updateData.endDate = input.endDate;
+
+		const [row] = await this.db
+			.update(drawSessions)
+			.set(updateData)
 			.where(and(eq(drawSessions.organizationId, organizationId), eq(drawSessions.id, sessionId)))
 			.returning();
 		return row ?? null;

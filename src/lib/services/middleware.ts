@@ -30,7 +30,13 @@ export function withAuthRedirect<T extends Kit.ServerLoad<any, any, any, any>>(
 
 			return await handler(event as any);
 		} catch (error) {
-			if (error instanceof z.ZodError) {
+			if (error instanceof z4.ZodError) {
+				return {
+					status: 200,
+					error: 'Validation error',
+					details: z.flattenError(error)
+				};
+			} else if (error instanceof z.ZodError) {
 				return {
 					status: 200,
 					error: 'Validation error',

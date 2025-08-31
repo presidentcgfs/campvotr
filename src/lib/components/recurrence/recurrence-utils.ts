@@ -2,21 +2,31 @@
  * Recurrence utilities for rrule-temporal integration
  */
 
-import type { Temporal } from '@js-temporal/polyfill';
+import { Temporal } from '@js-temporal/polyfill';
 import { RRuleTemporal, type RRuleOptions } from 'rrule-temporal';
 import { toTemporalInstant } from '@js-temporal/polyfill';
-declare global {
-	interface Date {
-		toTemporalInstant(): Temporal.Instant;
-	}
+
+export function toTemporal(date: Date | Temporal.Instant): Temporal.Instant {
+	return date instanceof Temporal.Instant ? date : toTemporalInstant.call(toDate(date)!);
 }
-
-Date.prototype.toTemporalInstant = toTemporalInstant;
-
+export function toZonedDateTimeUTC(tdate: Date | Temporal.Instant) {
+	const temp = toTemporal(tdate);
+	return temp.toZonedDateTimeISO('UTC');
+}
 /**
  * Weekday type for recurrence rules
  */
-export type Weekday = 'MO' | 'TU' | 'WE' | 'TH' | 'FR' | 'SA' | 'SU';
+export const DayNames = {
+	MO: 'Monday',
+	TU: 'Tuesday',
+	WE: 'Wednesday',
+	TH: 'Thursday',
+	FR: 'Friday',
+	SA: 'Saturday',
+	SU: 'Sunday'
+} as const;
+
+export type Weekday = keyof typeof DayNames;
 
 /**
  * Time window representing a daily time range
@@ -31,7 +41,7 @@ export type TimeWindow = {
  */
 export type EndCondition =
 	| { type: 'never' }
-	| { type: 'onDate'; onDate: Temporal.Instant }
+	| { type: 'onDate'; onDate: Date }
 	| { type: 'afterCount'; count: number };
 
 /**
@@ -41,10 +51,10 @@ export type RecurrenceMulti = {
 	frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 	interval: number; // >= 1
 	weekdays?: Weekday[]; // only for weekly
-	startDate: Temporal.Instant; // UTC date-only (00:00 UTC)
+	startDate: Date; // UTC date-only (00:00 UTC)
 	endCondition: EndCondition;
 	timeWindows: TimeWindow[]; // one or more daily time windows
-	exceptions?: Temporal.Instant[]; // optional exclusion dates (UTC date-only)
+	exceptions?: Date[]; // optional exclusion dates (UTC date-only)
 	timezone?: string; // default 'UTC'
 	// Backward compatibility - deprecated, use timeWindows instead
 	timeRange?: { start: string; end: string };
@@ -75,8 +85,7 @@ export type RRuleTemporalOptions = RRuleOptions;
  */
 export function toRRuleTemporalOptions(recurrence: Recurrence): RRuleTemporalOptions {
 	// Convert Temporal.Instant to Date for rrule-temporal compatibility
-	const startDate = recurrence.startDate.toTemporalInstant().toZonedDateTimeISO('UTC');
-
+	const startDate = toZonedDateTimeUTC(recurrence.startDate);
 	const options: RRuleTemporalOptions = {
 		dtstart: startDate,
 		freq: recurrence.frequency === 'once' ? 'DAILY' : (recurrence.frequency.toUpperCase() as any),
@@ -115,14 +124,12 @@ export function toRRuleTemporalOptions(recurrence: Recurrence): RRuleTemporalOpt
 		options.count = Number(recurrence.endCondition.count); // Ensure it's a number
 	} else if (recurrence.endCondition.type === 'onDate') {
 		// Convert Temporal.Instant to Date
-		options.until = recurrence.endCondition.onDate.toTemporalInstant().toZonedDateTimeISO('UTC');
+		options.until = toZonedDateTimeUTC(recurrence.endCondition.onDate);
 	}
 
 	// Handle exceptions - convert Date[] to proper format
 	if (recurrence.exceptions?.length) {
-		options.exDate = recurrence.exceptions.map((date) =>
-			(date instanceof Date ? date : new Date(date)).toTemporalInstant().toZonedDateTimeISO('UTC')
-		);
+		options.exDate = recurrence.exceptions.map(toZonedDateTimeUTC);
 	}
 
 	// For 'once' frequency, set count to 1
@@ -133,7 +140,16 @@ export function toRRuleTemporalOptions(recurrence: Recurrence): RRuleTemporalOpt
 	return options;
 }
 
-function toDate(temporal?: Temporal.ZonedDateTime): undefined | Date {
+export function toDate(
+	temporal?: Temporal.ZonedDateTime | number | string | Date
+): undefined | Date {
+	if (temporal instanceof Date) {
+		return temporal;
+	}
+	if (typeof temporal === 'string' || typeof temporal === 'number') {
+		return new Date(temporal);
+	}
+
 	return temporal != null ? new Date(temporal.toInstant().epochMilliseconds) : undefined;
 }
 /**
@@ -252,16 +268,7 @@ export function getRecurrenceDescription(recurrence: Recurrence): string {
 		}
 
 		if (frequency === 'weekly' && weekdays?.length) {
-			const dayNames = {
-				MO: 'Monday',
-				TU: 'Tuesday',
-				WE: 'Wednesday',
-				TH: 'Thursday',
-				FR: 'Friday',
-				SA: 'Saturday',
-				SU: 'Sunday'
-			};
-			const dayList = weekdays.map((day) => dayNames[day]).join(', ');
+			const dayList = weekdays.map((day) => DayNames[day]).join(', ');
 			description += ` on ${dayList}`;
 		}
 	}
@@ -371,7 +378,7 @@ export function toRRules(recurrence: RecurrenceMulti): RRuleResult[] {
 		}
 
 		// Convert Temporal.Instant to ZonedDateTime for DTSTART
-		const startZdt = normalizedRecurrence.startDate.toZonedDateTimeISO(timezone);
+		const startZdt = toZonedDateTimeUTC(normalizedRecurrence.startDate);
 		const dtstart = startZdt.with({
 			hour: startHour,
 			minute: startMinute,
@@ -404,7 +411,7 @@ export function toRRules(recurrence: RecurrenceMulti): RRuleResult[] {
 			options.count = Number(normalizedRecurrence.endCondition.count);
 		} else if (normalizedRecurrence.endCondition.type === 'onDate') {
 			// Convert to UTC ZonedDateTime for UNTIL
-			options.until = normalizedRecurrence.endCondition.onDate.toZonedDateTimeISO('UTC');
+			options.until = toZonedDateTimeUTC(normalizedRecurrence.endCondition.onDate);
 		}
 
 		// For 'once' frequency, set count to 1
@@ -414,9 +421,7 @@ export function toRRules(recurrence: RecurrenceMulti): RRuleResult[] {
 
 		// Handle exceptions
 		if (normalizedRecurrence.exceptions?.length) {
-			options.exDate = normalizedRecurrence.exceptions.map((instant: Temporal.Instant) =>
-				instant.toZonedDateTimeISO(timezone)
-			);
+			options.exDate = normalizedRecurrence.exceptions.map(toZonedDateTimeUTC);
 		}
 
 		// Generate rrule string
@@ -547,7 +552,7 @@ export function getRecurrenceMultiDescription(recurrence: RecurrenceMulti): stri
 	if (endCondition.type === 'afterCount') {
 		description += ` for ${endCondition.count} occurrence${endCondition.count === 1 ? '' : 's'}`;
 	} else if (endCondition.type === 'onDate') {
-		description += ` until ${new Date(endCondition.onDate.epochMilliseconds).toLocaleDateString()}`;
+		description += ` until ${toDate(endCondition.onDate)?.toLocaleDateString()}`;
 	}
 
 	return description;
@@ -637,14 +642,14 @@ export function fromRRules(rules: RRuleResult[]): RecurrenceMulti {
 		frequency: firstOptions.count === 1 ? 'once' : (firstOptions.freq.toLowerCase() as any),
 		interval: firstOptions.interval || 1,
 		weekdays: firstOptions.byDay as Weekday[] | undefined,
-		startDate: firstOptions.dtstart.toInstant(),
+		startDate: toDate(firstOptions.dtstart)!,
 		endCondition: firstOptions.count
 			? { type: 'afterCount', count: firstOptions.count }
 			: firstOptions.until
-				? { type: 'onDate', onDate: firstOptions.until.toInstant() }
+				? { type: 'onDate', onDate: toDate(firstOptions.until)! }
 				: { type: 'never' },
 		timeWindows,
-		exceptions: firstOptions.exDate?.map((zdt) => zdt.toInstant()),
+		exceptions: firstOptions.exDate?.map((v) => toDate(v)!) || [],
 		timezone: firstOptions.tzid || 'UTC'
 	};
 

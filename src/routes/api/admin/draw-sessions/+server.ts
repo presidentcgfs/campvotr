@@ -4,11 +4,7 @@ import { z } from 'zod';
 import { withAuth } from '$lib/services/middleware';
 import { organizationServiceKey } from '$lib/services/org';
 import { drawSessionAdminServiceKey } from '$lib/services/draw-session-admin-service';
-import {
-	type RecurrenceMulti,
-	toRRules,
-	validateRecurrenceMulti
-} from '$lib/components/recurrence/recurrence-utils';
+import { toRRules } from '$lib/components/recurrence/recurrence-utils';
 import { drawSessionSchema } from '$lib/schemas/draw-session-schema';
 import { parseResponse } from '$lib/utils/parse';
 

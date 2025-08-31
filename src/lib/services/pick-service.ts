@@ -81,4 +81,11 @@ export class PickService extends BaseService {
 
 		return { success: true, roundNumber, turnNumber };
 	}
+
+	// Wrapper method for the schedule page
+	async pickSlot(organizationId: string, sessionId: string, timeSlotId: string) {
+		// This would need the current user ID - for now we'll return an error
+		// In a real implementation, this would get the user from the request context
+		return { error: 'User context required for picking slots' };
+	}
 }

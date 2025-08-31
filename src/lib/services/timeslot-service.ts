@@ -164,6 +164,98 @@ export class TimeSlotService extends BaseService {
 		return { created };
 	}
 
+	// List time slots with optional filtering and field name inclusion
+	async listTimeSlots(
+		organizationId: string,
+		options?: {
+			startDate?: string;
+			endDate?: string;
+			fieldId?: string;
+			includeFieldName?: boolean;
+		}
+	) {
+		const whereParts: any[] = [eq(timeSlots.organizationId, organizationId)];
+
+		if (options?.startDate) {
+			whereParts.push(gt(timeSlots.startUtc, new Date(options.startDate)));
+		}
+		if (options?.endDate) {
+			whereParts.push(lt(timeSlots.startUtc, new Date(options.endDate)));
+		}
+		if (options?.fieldId) {
+			whereParts.push(eq(timeSlots.fieldId, options.fieldId));
+		}
+
+		if (options?.includeFieldName) {
+			const rows = await this.db
+				.select()
+				.from(timeSlots)
+				.leftJoin(fields, eq(timeSlots.fieldId, fields.id))
+				.where(and(...whereParts))
+				.orderBy(timeSlots.startUtc);
+			return rows.map((r: any) => ({ ...r.time_slots, fieldName: r.fields?.name ?? null }));
+		}
+
+		const rows = await this.db
+			.select()
+			.from(timeSlots)
+			.where(and(...whereParts))
+			.orderBy(timeSlots.startUtc);
+		return rows;
+	}
+
+	// Assign a time slot to a participant
+	async assignSlot(organizationId: string, slotId: string, participantId: string) {
+		try {
+			const [updated] = await this.db
+				.update(timeSlots)
+				.set({
+					assignedParticipantId: participantId,
+					status: 'picked' as any,
+					updatedAt: new Date()
+				})
+				.where(
+					and(
+						eq(timeSlots.id, slotId),
+						eq(timeSlots.organizationId, organizationId),
+						eq(timeSlots.status, 'available' as any)
+					)
+				)
+				.returning();
+
+			if (!updated) {
+				return { error: 'Slot not found or not available' };
+			}
+
+			return { slot: updated };
+		} catch (error) {
+			return { error: 'Failed to assign slot' };
+		}
+	}
+
+	// Unassign a time slot
+	async unassignSlot(organizationId: string, slotId: string) {
+		try {
+			const [updated] = await this.db
+				.update(timeSlots)
+				.set({
+					assignedParticipantId: null,
+					status: 'available' as any,
+					updatedAt: new Date()
+				})
+				.where(and(eq(timeSlots.id, slotId), eq(timeSlots.organizationId, organizationId)))
+				.returning();
+
+			if (!updated) {
+				return { error: 'Slot not found' };
+			}
+
+			return { slot: updated };
+		} catch (error) {
+			return { error: 'Failed to unassign slot' };
+		}
+	}
+
 	// Bulk validate against overlaps and create provided slots
 	async bulkCreateIfValid(
 		organizationId: string,

@@ -363,11 +363,11 @@ export const timeSlots = pgTable(
 		fieldId: uuid('field_id')
 			.references(() => fields.id, { onDelete: 'cascade' })
 			.notNull(),
-		startUtc: timestamp('start_utc').notNull(),
-		endUtc: timestamp('end_utc').notNull(),
+		startUtc: timestamp('start_utc', { mode: 'date' }).notNull(),
+		endUtc: timestamp('end_utc', { mode: 'date' }).notNull(),
 		status: timeSlotStatusEnum('status').default('available').notNull(),
 		heldByUserId: uuid('held_by_user_id'),
-		holdExpiresAt: timestamp('hold_expires_at'),
+		holdExpiresAt: timestamp('hold_expires_at', { mode: 'date' }),
 		blockedReason: text('blocked_reason'),
 		version: integer('version').default(1).notNull(),
 		createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -400,8 +400,8 @@ export const recurrenceRules = pgTable('recurrence_rules', {
 	frequency: recurrenceFrequencyEnum('frequency').notNull(),
 	interval: integer('interval').default(1).notNull(),
 	byDay: varchar('by_day', { length: 64 }), // e.g. "MO,TU,WE"
-	windowStartUtc: timestamp('window_start_utc').notNull(),
-	windowEndUtc: timestamp('window_end_utc').notNull(),
+	windowStartUtc: timestamp('window_start_utc', { mode: 'date' }).notNull(),
+	windowEndUtc: timestamp('window_end_utc', { mode: 'date' }).notNull(),
 	blackoutDates: text('blackout_dates'), // JSON-encoded array of ISO dates or ranges
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at').defaultNow().notNull()
@@ -418,8 +418,8 @@ export const drawSessions = pgTable('draw_sessions', {
 	rounds: integer('rounds'), // null => until no slots remain
 	pickTimeoutSec: integer('pick_timeout_sec').default(60).notNull(),
 	startsAtUtc: timestamp('starts_at_utc').notNull(),
-	startDate: date('start_date').notNull(),
-	endDate: date('end_date').notNull(),
+	startDate: date('start_date', { mode: 'date' }).notNull(),
+	endDate: date('end_date', { mode: 'date' }).notNull(),
 	createdByUserId: uuid('created_by_user_id').notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at').defaultNow().notNull()
@@ -499,6 +499,7 @@ export const drawScheduleFields = pgTable(
 		fieldId: uuid('field_id')
 			.references(() => fields.id, { onDelete: 'cascade' })
 			.notNull(),
+
 		createdAt: timestamp('created_at').defaultNow().notNull()
 	},
 	(table) => ({
@@ -531,3 +532,39 @@ export const auditLogs = pgTable('audit_logs', {
 	diff: text('diff'), // JSON-encoded diff
 	createdAt: timestamp('created_at').defaultNow().notNull()
 }).enableRLS();
+
+export const drawSessionsRelations = relations(drawSessions, ({ one, many }) => ({
+	organization: one(organizations, {
+		fields: [drawSessions.organizationId],
+		references: [organizations.id]
+	}),
+	participants: many(participants),
+	picks: many(picks),
+	schedules: many(drawSchedules)
+}));
+export const sessionSchedulesRelations = relations(drawSchedules, ({ one, many }) => ({
+	drawSession: one(drawSessions, {
+		fields: [drawSchedules.drawSessionId],
+		references: [drawSessions.id]
+	}),
+	fields: many(drawScheduleFields),
+	rules: many(drawScheduleRules)
+}));
+export const scheduleFieldsRelations = relations(drawScheduleFields, ({ one }) => ({
+	drawSchedule: one(drawSchedules, {
+		fields: [drawScheduleFields.drawScheduleId],
+		references: [drawSchedules.id]
+	})
+}));
+export const drawScheduleFieldsFieldsRelations = relations(drawScheduleFields, ({ one }) => ({
+	field: one(fields, {
+		fields: [drawScheduleFields.fieldId],
+		references: [fields.id]
+	})
+}));
+export const scheduleRulesRelations = relations(drawScheduleRules, ({ one }) => ({
+	drawSchedule: one(drawSchedules, {
+		fields: [drawScheduleRules.drawScheduleId],
+		references: [drawSchedules.id]
+	})
+}));

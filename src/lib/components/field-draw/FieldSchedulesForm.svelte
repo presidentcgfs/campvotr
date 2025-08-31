@@ -1,25 +1,14 @@
 <script lang="ts">
 	import Modal from '$lib/components/Modal.svelte';
-	import RecurrencePicker from '$lib/components/recurrence/RecurrencePicker.svelte';
-	import {
-		Button,
-		MultiSelect,
-		Accordion,
-		AccordionItem,
-		Timepicker,
-		Datepicker,
-		Select,
-		Input,
-		Textarea
-	} from 'flowbite-svelte';
-	import { TrashBinOutline } from 'flowbite-svelte-icons';
+	import { Button, Datepicker, Select, Input, Textarea } from 'flowbite-svelte';
 	import {
 		type RecurrenceMulti,
 		toRRules,
-		generateTimeSlotsMulti,
-		getRecurrenceMultiDescription
+		generateTimeSlotsMulti
 	} from '$lib/components/recurrence/recurrence-utils.js';
 	import type { PageData } from '../../../routes/admin/draw-sessions/$types';
+	import Schedules from '../schedules/Schedules.svelte';
+	import type { ScheduleUI } from '../schedules/types';
 	export let data: PageData; // expects { orgId, fields, sessions }
 
 	// Form state
@@ -31,14 +20,6 @@
 
 	// Schedule management
 
-	$: fieldSelectItems = (data.fields || []).map((f: any) => ({ value: f.id, name: f.name }));
-
-	// Draw-level schedules using RecurrenceMulti (each can target multiple Fields)
-	type ScheduleUI = {
-		recurrence: RecurrenceMulti;
-		fieldIds: string[];
-		collapsed?: boolean;
-	};
 	function createDefaultScheduleUI(): ScheduleUI {
 		return {
 			recurrence: {
@@ -58,36 +39,6 @@
 
 	function addScheduleUI() {
 		schedules = [...schedules, createDefaultScheduleUI()];
-	}
-	function removeScheduleUI(idx: number) {
-		schedules.splice(idx, 1);
-		if (schedules.length === 0) schedules = [createDefaultScheduleUI()];
-		else schedules = [...schedules];
-	}
-
-	// Updated functions for RecurrenceMulti-based schedules
-	function calculateScheduleSlots(recurrence: RecurrenceMulti): number {
-		try {
-			const timeSlots = generateTimeSlotsMulti(recurrence);
-			return timeSlots.length;
-		} catch (error) {
-			console.warn('Error calculating schedule slots:', error);
-			return 0;
-		}
-	}
-
-	// Title helpers (top-level) for schedule-centric UI
-	function labelFields(ids: string[]): string {
-		const names = (ids || []).map((id) => data.fields?.find((f: any) => f.id === id)?.name || id);
-		if (names.length === 0) return '';
-		if (names.length <= 2) return names.join(', ');
-		return `${names.slice(0, 2).join(', ')} +${names.length - 2} more`;
-	}
-
-	function deriveScheduleTitle(sch: ScheduleUI): string {
-		const f = labelFields(sch.fieldIds);
-		const description = getRecurrenceMultiDescription(sch.recurrence);
-		return [f, description].filter(Boolean).join(' - ');
 	}
 
 	// Confirmation modal
@@ -217,62 +168,8 @@
 		<div class="flex items-center justify-between">
 			<h2 class="text-lg font-semibold">Schedules</h2>
 		</div>
-
-		<Accordion>
-			{#each schedules as sch, si}
-				<AccordionItem open={si === 0}>
-					{#snippet header()}
-						<span class="flex w-full items-center justify-between">
-							<span class="text-sm font-medium">
-								{deriveScheduleTitle(sch) || `Schedule ${si + 1}`}
-							</span>
-							<div class="flex items-center gap-2">
-								{#if schedules.length > 1}
-									<Button
-										type="button"
-										pill
-										outline
-										color="red"
-										size="xs"
-										class="p-2!"
-										onclick={() => removeScheduleUI(si)}
-									>
-										<TrashBinOutline size="xs" />
-									</Button>
-								{/if}
-							</div>
-						</span>
-					{/snippet}
-					<div class="space-y-4">
-						<div>
-							<label for="fields-{si}" class="mb-2 block text-sm font-medium">Target Fields</label>
-							<MultiSelect
-								id="fields-{si}"
-								items={fieldSelectItems}
-								bind:value={sch.fieldIds}
-								placeholder="Select fields for this schedule"
-								class="w-full"
-							/>
-						</div>
-
-						<div>
-							<RecurrencePicker
-								allowedEndConditions={['afterCount', 'onDate']}
-								value={sch.recurrence}
-							/>
-						</div>
-
-						<div class="rounded bg-gray-50 p-3 text-sm">
-							<strong>Preview:</strong>
-							{getRecurrenceMultiDescription(sch.recurrence)}
-						</div>
-					</div>
-				</AccordionItem>
-			{/each}
-		</Accordion>
-		<Button type="button" class="btn btn-secondary btn-sm" onclick={addScheduleUI}
-			>Add schedule</Button
-		>
+		<Schedules path="draw.schedules" bind:schedules fields={data.fields} />
+		<Button class="btn btn-secondary btn-sm" onclick={addScheduleUI}>Add schedule</Button>
 
 		<!-- Field-specific schedules section removed - now using unified RecurrencePicker approach -->
 
