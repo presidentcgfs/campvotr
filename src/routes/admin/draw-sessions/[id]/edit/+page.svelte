@@ -9,10 +9,17 @@
 
 	let { data } = $props<{ data: PageData }>();
 	// Initialize schedules - start with one empty schedule
-	let schedules = $derived((data.draw.schedules ?? []) as ScheduleUI[]);
+	let schedules = $state((data.draw.schedules ?? []) as ScheduleUI[]);
+	let draw = $state<{
+		name: string;
+		startsAtUtc: Date;
+		pickTimeoutSec: number;
+		turnStrategy: string;
+		rounds: number;
+	}>(data.draw);
 
 	function addSchedule() {
-		schedules = schedules.concat({
+		schedules.push({
 			fieldIds: [],
 			recurrence: {
 				frequency: 'once',
@@ -57,7 +64,7 @@
 			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 				<div>
 					<label for="name" class="block text-sm font-medium text-gray-700">Session Name</label>
-					<Input type="text" id="name" name="name" bind:value={data.draw.name} required />
+					<Input type="text" id="name" name="name" bind:value={draw.name} required />
 				</div>
 
 				<div>
@@ -67,7 +74,7 @@
 					<select
 						id="turnStrategy"
 						name="turnStrategy"
-						bind:value={data.draw.turnStrategy}
+						bind:value={draw.turnStrategy}
 						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 					>
 						<option value="fixed">Fixed Order</option>
@@ -84,7 +91,7 @@
 						type="number"
 						id="rounds"
 						name="rounds"
-						bind:value={data.draw.rounds}
+						bind:value={draw.rounds}
 						placeholder="Unlimited"
 						min="1"
 					/>
@@ -98,7 +105,7 @@
 						type="number"
 						id="pickTimeoutSec"
 						name="pickTimeoutSec"
-						bind:value={data.draw.pickTimeoutSec}
+						bind:value={draw.pickTimeoutSec}
 						min="10"
 						max="3600"
 						required
@@ -113,7 +120,7 @@
 						type="datetime-local"
 						id="startsAtUtc"
 						name="startsAtUtc"
-						bind:value={data.draw.startsAtUtc}
+						bind:value={draw.startsAtUtc}
 						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 					/>
 				</div>

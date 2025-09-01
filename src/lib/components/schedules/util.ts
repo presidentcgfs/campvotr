@@ -34,7 +34,7 @@ export function deriveScheduleTitle(sch: ScheduleUI, fieldMap: Map<string, Field
 		}
 		// Check for consecutive weekdays
 		else if (weekdays.length > 2) {
-			const sortedDays = weekdays.sort((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b));
+			const sortedDays = weekdays.toSorted((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b));
 
 			// Check if days are consecutive
 			const isConsecutive = sortedDays.every((day, i) => {

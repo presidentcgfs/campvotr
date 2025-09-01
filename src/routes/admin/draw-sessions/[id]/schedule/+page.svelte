@@ -1,32 +1,26 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import { enhance } from '$app/forms';
-	import {
-		Button,
-		Badge,
-		Modal,
-		Select,
-		Search,
-		ButtonGroup,
-		Card,
-		MultiSelect
-	} from 'flowbite-svelte';
+	import { Button, Badge, Modal, Select, ButtonGroup, Card, MultiSelect } from 'flowbite-svelte';
 	import {
 		CalendarWeekOutline,
 		ClockOutline,
 		UserAddOutline,
 		UserRemoveOutline,
-		CheckOutline
+		CheckOutline,
+		EditOutline
 	} from 'flowbite-svelte-icons';
 	import type { Field } from '$lib/components/schedules/types';
+	import Grouper from '$lib/components/grouper/Grouper.svelte';
+	import type { GroupConfig } from '$lib/components/grouper/grouper';
 
 	export let data: PageData;
 	$: {
 		console.log(data);
 	}
 	// State management
-	let groupBy: 'time' | 'field' | 'day' = 'time';
-	let searchQuery = '';
+	let activeGroupKey: string | null = 'time';
+	let hideUnavailable = false;
 	let dateRange = {
 		start: data.defaultDateRange.start,
 		end: data.defaultDateRange.end
@@ -40,18 +34,82 @@
 	let selectedParticipantId = '';
 
 	$: fields = new Map<string, Field>(
-		data.session.schedules.flatMap((s) => s.fields.map((f) => [f.id, f.field]))
+		data.session.schedules.flatMap((s: any) => s.fields.map((f: any) => [f.id, f.field]))
 	);
 	$: selectedFieldIds = [] as string[];
+
+	// Group configurations for the Grouper component
+	const groupConfigs: GroupConfig<any>[] = [
+		{
+			key: 'time',
+			label: 'Time',
+			enabled: true,
+			value: (slot) => {
+				if (slot.isPattern) {
+					return `${slot.weekdayName} ${slot.startTime}`;
+				}
+				const date = new Date(slot.startUtc);
+				const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+				const time = date.toISOString().split('T')[1].substring(0, 5);
+				return `${dayName} ${time}`;
+			},
+			sort: (a, b) => {
+				// Extract day and time for sorting
+				const [dayA, timeA] = a.split(' ');
+				const [dayB, timeB] = b.split(' ');
+				const dayOrder = [
+					'Sunday',
+					'Monday',
+					'Tuesday',
+					'Wednesday',
+					'Thursday',
+					'Friday',
+					'Saturday'
+				];
+				const dayCompare = dayOrder.indexOf(dayA) - dayOrder.indexOf(dayB);
+				if (dayCompare !== 0) return dayCompare;
+				return timeA.localeCompare(timeB);
+			}
+		},
+		{
+			key: 'day',
+			label: 'Day',
+			enabled: true,
+			value: (slot) =>
+				slot.isPattern
+					? slot.weekdayName
+					: new Date(slot.startUtc).toLocaleDateString('en-US', { weekday: 'long' }),
+			sort: (a, b) => {
+				const dayOrder = [
+					'Sunday',
+					'Monday',
+					'Tuesday',
+					'Wednesday',
+					'Thursday',
+					'Friday',
+					'Saturday'
+				];
+				return dayOrder.indexOf(a) - dayOrder.indexOf(b);
+			}
+		},
+		{
+			key: 'field',
+			label: 'Field',
+			enabled: true,
+			value: 'fieldName',
+			sort: 'asc'
+		}
+	];
+
 	// Reactive data processing
 	$: filteredSlots = data.timeSlots.filter((slot: any) => {
-		// Filter by search query (field name)
-		if (searchQuery && !slot.fieldName?.toLowerCase().includes(searchQuery.toLowerCase())) {
+		// Filter by selected fields
+		if (selectedFieldIds.length > 0 && !selectedFieldIds.includes(slot.fieldId)) {
 			return false;
 		}
 
-		// Filter by selected fields
-		if (selectedFieldIds.length > 0 && !selectedFieldIds.includes(slot.fieldId)) {
+		// Filter by availability status
+		if (hideUnavailable && slot.status !== 'available') {
 			return false;
 		}
 
@@ -63,165 +121,7 @@
 		return slotDate >= start && slotDate < end;
 	});
 
-	$: groupedSlots = groupSlots(filteredSlots, groupBy);
-
-	// Grouping logic
-	function groupSlots(slots: any[], groupBy: 'time' | 'field' | 'day') {
-		if (groupBy === 'time') {
-			return groupByTime(slots);
-		} else if (groupBy === 'field') {
-			return groupByField(slots);
-		} else {
-			return groupByDay(slots);
-		}
-	}
-
-	function groupByTime(slots: any[]) {
-		const groups = new Map();
-
-		slots.forEach((slot) => {
-			// For recurring patterns, group by weekday and time
-			const groupKey = slot.isPattern
-				? `${slot.weekday}_${slot.startTime}`
-				: `${new Date(slot.startUtc).toISOString().split('T')[0]}_${new Date(slot.startUtc).toISOString().split('T')[1].substring(0, 5)}`;
-
-			if (!groups.has(groupKey)) {
-				if (slot.isPattern) {
-					groups.set(groupKey, {
-						weekday: slot.weekday,
-						weekdayName: slot.weekdayName,
-						time: slot.startTime,
-						displayDate: slot.weekdayName,
-						displayTime: slot.startTime,
-						slots: []
-					});
-				} else {
-					const date = new Date(slot.startUtc);
-					const dayKey = date.toISOString().split('T')[0];
-					const timeKey = date.toISOString().split('T')[1].substring(0, 5);
-					groups.set(groupKey, {
-						date: dayKey,
-						time: timeKey,
-						displayDate: formatDate(date),
-						displayTime: timeKey,
-						slots: []
-					});
-				}
-			}
-
-			groups.get(groupKey).slots.push(slot);
-		});
-
-		// Sort by weekday/date and time
-		return Array.from(groups.values()).sort((a, b) => {
-			if (a.weekday && b.weekday) {
-				const dayOrder = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
-				const dayCompare = dayOrder.indexOf(a.weekday) - dayOrder.indexOf(b.weekday);
-				if (dayCompare !== 0) return dayCompare;
-				return a.time.localeCompare(b.time);
-			}
-			// Fallback for non-pattern slots
-			const dateCompare = (a.date || '').localeCompare(b.date || '');
-			if (dateCompare !== 0) return dateCompare;
-			return a.time.localeCompare(b.time);
-		});
-	}
-
-	function groupByField(slots: any[]) {
-		const groups = new Map();
-
-		slots.forEach((slot) => {
-			const fieldKey = slot.fieldId;
-
-			if (!groups.has(fieldKey)) {
-				groups.set(fieldKey, {
-					fieldId: slot.fieldId,
-					fieldName: slot.fieldName || 'Unknown Field',
-					slots: []
-				});
-			}
-
-			groups.get(fieldKey).slots.push(slot);
-		});
-
-		// Sort fields alphabetically and slots by time within each field
-		return Array.from(groups.values())
-			.sort((a, b) => a.fieldName.localeCompare(b.fieldName))
-			.map((group) => ({
-				...group,
-				slots: group.slots.sort(
-					(a: any, b: any) => new Date(a.startUtc).getTime() - new Date(b.startUtc).getTime()
-				)
-			}));
-	}
-
-	function groupByDay(slots: any[]) {
-		const groups = new Map();
-
-		slots.forEach((slot) => {
-			// Group by weekday for recurring patterns
-			const groupKey = slot.isPattern
-				? slot.weekday
-				: new Date(slot.startUtc).getUTCDay().toString();
-
-			if (!groups.has(groupKey)) {
-				if (slot.isPattern) {
-					groups.set(groupKey, {
-						weekday: slot.weekday,
-						weekdayName: slot.weekdayName,
-						displayName: slot.weekdayName,
-						slots: []
-					});
-				} else {
-					const date = new Date(slot.startUtc);
-					const dayNames = [
-						'Sunday',
-						'Monday',
-						'Tuesday',
-						'Wednesday',
-						'Thursday',
-						'Friday',
-						'Saturday'
-					];
-					groups.set(groupKey, {
-						weekday: groupKey,
-						weekdayName: dayNames[date.getUTCDay()],
-						displayName: dayNames[date.getUTCDay()],
-						slots: []
-					});
-				}
-			}
-
-			groups.get(groupKey).slots.push(slot);
-		});
-
-		// Sort by weekday order and then by time within each day
-		return Array.from(groups.values())
-			.sort((a, b) => {
-				const dayOrder = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
-				const aIndex =
-					dayOrder.indexOf(a.weekday) !== -1 ? dayOrder.indexOf(a.weekday) : parseInt(a.weekday);
-				const bIndex =
-					dayOrder.indexOf(b.weekday) !== -1 ? dayOrder.indexOf(b.weekday) : parseInt(b.weekday);
-				return aIndex - bIndex;
-			})
-			.map((group) => ({
-				...group,
-				slots: group.slots.sort((a: any, b: any) => {
-					if (a.isPattern && b.isPattern) {
-						return a.startTime.localeCompare(b.startTime);
-					}
-					return new Date(a.startUtc).getTime() - new Date(b.startUtc).getTime();
-				})
-			}));
-	}
-
-	// Utility functions
-	function formatDate(date: Date): string {
-		const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-		return `${days[date.getUTCDay()]} ${date.getUTCDate()}/${date.getUTCMonth() + 1}`;
-	}
-
+	// Utility functions for slot display
 	function formatTimeRange(slot: any): string {
 		// For recurring patterns, use the pattern times directly
 		if (slot.isPattern) {
@@ -233,6 +133,12 @@
 		const startTime = start.toISOString().split('T')[1].substring(0, 5);
 		const endTime = end.toISOString().split('T')[1].substring(0, 5);
 		return `${startTime}–${endTime}`;
+	}
+
+	// Utility functions
+	function formatDate(date: Date): string {
+		const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+		return `${days[date.getUTCDay()]} ${date.getUTCDate()}/${date.getUTCMonth() + 1}`;
 	}
 
 	function getSlotStatus(slot: any): { status: string; color: 'blue' | 'green'; text: string } {
@@ -298,142 +204,154 @@
 				<p class="text-gray-600">Schedule Management</p>
 			</div>
 
-			<!-- Grouping Toggle -->
-			<ButtonGroup>
-				<Button
-					color={groupBy === 'time' ? 'blue' : 'alternative'}
-					onclick={() => (groupBy = 'time')}
-				>
-					<ClockOutline class="mr-2 h-4 w-4" />
-					By Time
-				</Button>
-				<Button
-					color={groupBy === 'field' ? 'blue' : 'alternative'}
-					onclick={() => (groupBy = 'field')}
-				>
-					<CalendarWeekOutline class="mr-2 h-4 w-4" />
-					By Field
-				</Button>
-				<Button
-					color={groupBy === 'day' ? 'blue' : 'alternative'}
-					onclick={() => (groupBy = 'day')}
-				>
-					<CalendarWeekOutline class="mr-2 h-4 w-4" />
-					By Day
-				</Button>
-			</ButtonGroup>
+			<div class="flex items-center gap-4">
+				{#if isAdmin()}
+					<Button color="alternative" href="/admin/draw-sessions/{data.session.id}/edit">
+						<EditOutline class="mr-2 h-4 w-4" />
+						Edit Session
+					</Button>
+				{/if}
+
+				<!-- Grouping Toggle -->
+				<ButtonGroup>
+					<Button
+						color={activeGroupKey === 'time' ? 'blue' : 'alternative'}
+						onclick={() => (activeGroupKey = 'time')}
+					>
+						<ClockOutline class="mr-2 h-4 w-4" />
+						By Time
+					</Button>
+					<Button
+						color={activeGroupKey === 'field' ? 'blue' : 'alternative'}
+						onclick={() => (activeGroupKey = 'field')}
+					>
+						<CalendarWeekOutline class="mr-2 h-4 w-4" />
+						By Field
+					</Button>
+					<Button
+						color={activeGroupKey === 'day' ? 'blue' : 'alternative'}
+						onclick={() => (activeGroupKey = 'day')}
+					>
+						<CalendarWeekOutline class="mr-2 h-4 w-4" />
+						By Day
+					</Button>
+				</ButtonGroup>
+			</div>
 		</div>
 
 		<!-- Filters -->
 		<div class="flex flex-wrap gap-4">
-			<div class="min-w-64 flex-1">
-				<Search bind:value={searchQuery} placeholder="Search fields..." size="md" />
-			</div>
-
 			<!-- Field Filter -->
 			<MultiSelect
 				bind:value={selectedFieldIds}
 				items={[...fields.values()].map((f) => {
 					return { value: f.id, name: f.name };
 				})}
+				placeholder="All fields"
 			/>
+
+			<!-- Availability Filter -->
+			<label class="flex cursor-pointer items-center gap-2">
+				<input
+					type="checkbox"
+					bind:checked={hideUnavailable}
+					class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+				/>
+				<span class="text-sm text-gray-700">Hide unavailable slots</span>
+			</label>
 		</div>
 	</div>
 
 	<!-- Time Slots Display -->
 	<div class="space-y-6">
-		{#if groupedSlots.length === 0}
-			<Card class="py-12 text-center">
-				<CalendarWeekOutline class="mx-auto mb-4 h-12 w-12 text-gray-400" />
-				<h3 class="mb-2 text-lg font-medium text-gray-900">No time slots found</h3>
-				<p class="text-gray-600">No time slots match your current filters.</p>
-			</Card>
-		{:else}
-			{#each groupedSlots as group}
-				<Card class="p-6">
-					<!-- Group Header -->
+		<Grouper
+			items={filteredSlots}
+			groups={groupConfigs}
+			{activeGroupKey}
+			emptyState="No time slots match your current filters."
+		>
+			{#snippet header({ config, value, depth, itemCount, path })}
+				<Card class="mb-4 p-6">
 					<div class="mb-4 border-b pb-2">
-						{#if groupBy === 'time'}
-							<h2 class="text-lg font-semibold text-gray-900">
-								{group.displayDate} at {group.displayTime}
-							</h2>
-						{:else if groupBy === 'field'}
-							<h2 class="text-lg font-semibold text-gray-900">
-								{group.fieldName}
-							</h2>
-						{:else}
-							<h2 class="text-lg font-semibold text-gray-900">
-								{group.displayName}
-							</h2>
-						{/if}
-					</div>
-
-					<!-- Slots Grid -->
-					<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-						{#each group.slots as slot}
-							{@const slotStatus = getSlotStatus(slot)}
-							<div class="rounded-lg border p-4 transition-shadow hover:shadow-md">
-								<div class="mb-3 flex items-start justify-between">
-									<div>
-										<div class="font-medium text-gray-900">
-											{formatTimeRange(slot)}
-										</div>
-										{#if groupBy === 'time'}
-											<div class="text-sm text-gray-600">{slot.fieldName}</div>
-										{:else if groupBy === 'field'}
-											<div class="text-sm text-gray-600">
-												{#if slot.isPattern}
-													{slot.weekdayName}
-												{:else}
-													{formatDate(new Date(slot.startUtc))}
-												{/if}
-											</div>
-										{:else}
-											<!-- Day grouping - show field name -->
-											<div class="text-sm text-gray-600">{slot.fieldName}</div>
-										{/if}
-									</div>
-									<Badge color={slotStatus.color} class="text-xs">
-										{slotStatus.text}
-									</Badge>
-								</div>
-
-								<!-- Action Buttons -->
-								<div class="flex gap-2">
-									{#if isAdmin()}
-										{#if slotStatus.status === 'available'}
-											<Button size="xs" color="blue" onclick={() => openAssignModal(slot)}>
-												<UserAddOutline class="mr-1 h-3 w-3" />
-												Assign
-											</Button>
-										{:else}
-											<Button size="xs" color="red" outline onclick={() => openUnassignModal(slot)}>
-												<UserRemoveOutline class="mr-1 h-3 w-3" />
-												Unassign
-											</Button>
-										{/if}
-									{:else if canPickSlot(slot)}
-										<Button size="xs" color="green" onclick={() => openPickModal(slot)}>
-											<CheckOutline class="mr-1 h-3 w-3" />
-											Pick this slot
-										</Button>
-									{:else}
-										<Button
-											size="xs"
-											color="gray"
-											disabled
-											title="Not your turn or slot unavailable"
-										>
-											Pick this slot
-										</Button>
-									{/if}
-								</div>
-							</div>
-						{/each}
+						<h2 class="text-lg font-semibold text-gray-900">
+							{config.label}: {value}
+							<span class="ml-2 text-sm font-normal text-gray-500">
+								({itemCount}
+								{itemCount === 1 ? 'slot' : 'slots'})
+							</span>
+						</h2>
 					</div>
 				</Card>
-			{/each}
-		{/if}
+			{/snippet}
+
+			{#snippet item({ item: slot, depth, path, index })}
+				{@const slotStatus = getSlotStatus(slot)}
+				<div
+					class="mb-4 rounded-lg border p-4 transition-shadow hover:shadow-md"
+					style="margin-left: {depth * 1}rem"
+				>
+					<div class="mb-3 flex items-start justify-between">
+						<div>
+							<div class="font-medium text-gray-900">
+								{formatTimeRange(slot)}
+							</div>
+							<div class="text-sm text-gray-600">
+								{slot.fieldName}
+								{#if slot.isPattern}
+									• {slot.weekdayName}
+								{:else}
+									• {formatDate(new Date(slot.startUtc))}
+								{/if}
+							</div>
+							{#if path.length > 0}
+								<div class="mt-1 text-xs text-gray-400">
+									{path.map((p) => `${p.key}:${p.value}`).join(' → ')}
+								</div>
+							{/if}
+						</div>
+
+						<!-- Status Badge -->
+						<Badge color={slotStatus.color} class="text-xs">
+							{slotStatus.text}
+						</Badge>
+					</div>
+
+					<!-- Actions -->
+					<div class="flex gap-2">
+						{#if isAdmin()}
+							{#if slotStatus.status === 'available'}
+								<Button size="xs" color="blue" onclick={() => openAssignModal(slot)}>
+									<UserAddOutline class="mr-1 h-3 w-3" />
+									Assign
+								</Button>
+							{:else}
+								<Button size="xs" color="red" outline onclick={() => openUnassignModal(slot)}>
+									<UserRemoveOutline class="mr-1 h-3 w-3" />
+									Unassign
+								</Button>
+							{/if}
+						{:else if canPickSlot(slot)}
+							<Button size="xs" color="green" onclick={() => openPickModal(slot)}>
+								<CheckOutline class="mr-1 h-3 w-3" />
+								Pick this slot
+							</Button>
+						{:else}
+							<Button size="xs" color="gray" disabled title="Not your turn or slot unavailable">
+								Pick this slot
+							</Button>
+						{/if}
+					</div>
+				</div>
+			{/snippet}
+
+			{#snippet empty({ message })}
+				<Card class="py-12 text-center">
+					<CalendarWeekOutline class="mx-auto mb-4 h-12 w-12 text-gray-400" />
+					<h3 class="mb-2 text-lg font-medium text-gray-900">No time slots found</h3>
+					<p class="text-gray-600">{message}</p>
+				</Card>
+			{/snippet}
+		</Grouper>
 	</div>
 </div>
 

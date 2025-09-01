@@ -143,6 +143,7 @@ export function toRRuleTemporalOptions(recurrence: Recurrence): RRuleTemporalOpt
 export function toDate(
 	temporal?: Temporal.ZonedDateTime | number | string | Date
 ): undefined | Date {
+	if (!temporal) return undefined;
 	if (temporal instanceof Date) {
 		return temporal;
 	}
@@ -150,7 +151,9 @@ export function toDate(
 		return new Date(temporal);
 	}
 
-	return temporal != null ? new Date(temporal.toInstant().epochMilliseconds) : undefined;
+	const temp = temporal;
+
+	return new Date(temp.epochMilliseconds);
 }
 /**
  * Convert rrule-temporal options back to UI Recurrence

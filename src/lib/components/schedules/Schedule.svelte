@@ -6,7 +6,7 @@
 	import type { Field, ScheduleUI } from './types';
 	import type { EndCondition } from '$lib/schemas/draw-session-schema';
 	let {
-		schedule = $bindable(),
+		schedule: _schedule = $bindable(),
 		path,
 		fields = $bindable(),
 		allowedEndConditions = ['afterCount', 'onDate']
@@ -14,15 +14,20 @@
 		schedule: ScheduleUI;
 		fields: Field[];
 		path: string;
-		allowedEndConditions: EndCondition['type'][];
+		allowedEndConditions?: EndCondition['type'][];
 	}>();
 
 	let items = $derived(fields.map((f: any) => ({ value: f.id, name: f.name })));
 	let fieldMap = $derived(new Map<string, Field>(fields.map((f: Field) => [f.id, f])));
+	let schedule = $state(_schedule);
+
 	let fieldIds = $derived(schedule.fieldIds);
 	$effect(() => {
 		schedule.fields = fieldIds.map((id: string) => fieldMap.get(id)!);
 		schedule.fieldIds = fieldIds;
+	});
+	$effect(() => {
+		_schedule = schedule;
 	});
 </script>
 

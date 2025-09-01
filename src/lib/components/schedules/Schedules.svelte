@@ -3,10 +3,10 @@
 	import type { Field, ScheduleUI } from './types';
 	import { TrashBinOutline } from 'flowbite-svelte-icons';
 	import Schedule from './Schedule.svelte';
-	import { dayOrder, dayNames, deriveScheduleTitle } from './util.js';
+	import { deriveScheduleTitle } from './util.js';
 
 	let {
-		schedules = $bindable(),
+		schedules: _schedules = $bindable(),
 		fields,
 		path = 'draw'
 	} = $props<{
@@ -15,9 +15,11 @@
 		path: string;
 	}>();
 
+	let schedules = $state(_schedules);
 	$effect(() => {
-		console.log('Schedules changed:', schedules);
+		_schedules = schedules;
 	});
+
 	let fieldMap = $derived(new Map<string, Field>(fields.map((f: Field) => [f.id, f])));
 
 	function removeScheduleUI(idx: number) {
@@ -42,7 +44,12 @@
 								color="red"
 								size="xs"
 								class="p-2!"
-								onclick={() => removeScheduleUI(si)}
+								title="Delete schedule"
+								onclick={(e: Event) => {
+									e.preventDefault();
+									e.stopPropagation();
+									removeScheduleUI(si);
+								}}
 							>
 								<TrashBinOutline size="xs" />
 							</Button>

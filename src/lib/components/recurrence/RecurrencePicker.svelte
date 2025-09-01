@@ -1,32 +1,5 @@
-<script lang="ts" context="module">
+<script lang="ts" module>
 	export type EndCondition = 'never' | 'onDate' | 'afterCount';
-</script>
-
-<script lang="ts">
-	import '../../../polyfill';
-	import { Select, Input, Timepicker, Datepicker, Button, Badge, Radio } from 'flowbite-svelte';
-	import { TrashBinOutline, PlusOutline } from 'flowbite-svelte-icons';
-	import {
-		type RecurrenceMulti,
-		normalizeRecurrenceMulti,
-		validateTimeWindows,
-		validateInterval,
-		validateCount,
-		validateWeekdays,
-		toDate
-	} from './recurrence-utils.js';
-	export let allowedEndConditions: EndCondition[] = ['never', 'onDate', 'afterCount'] as const;
-	export let path: string = '';
-	export let value: RecurrenceMulti = {
-		frequency: 'once',
-		interval: 1,
-		startDate: new Date(),
-		endCondition: { type: 'afterCount', count: 1 },
-		timeWindows: [{ start: '09:00', end: '10:00' }],
-		exceptions: [],
-		timezone: 'UTC'
-	};
-
 	// Frequency options
 	const frequencyOptions = [
 		{ value: 'once', name: 'Once' },
@@ -46,27 +19,84 @@
 		{ code: 'FR' as const, label: 'F' },
 		{ code: 'SA' as const, label: 'S' }
 	];
+</script>
 
-	// Validation state
-	let validationErrors: Record<string, string> = {};
+<script lang="ts">
+	import '../../../polyfill';
+	import { Select, Input, Timepicker, Datepicker, Button, Badge, Radio } from 'flowbite-svelte';
+	import { TrashBinOutline, PlusOutline } from 'flowbite-svelte-icons';
+	import {
+		type RecurrenceMulti,
+		normalizeRecurrenceMulti,
+		validateTimeWindows,
+		validateInterval,
+		validateCount,
+		validateWeekdays,
+		toDate
+	} from './recurrence-utils.js';
 
-	// Date for adding exceptions
-	let newExceptionDate: Date | undefined = undefined;
-
-	// Helper variables for date conversion
-	let startDateForPicker: Date;
-	let endDateForPicker: Date | undefined;
-
-	// Reactive updates for date conversion
-	$: startDateForPicker = toDate(value.startDate) ?? new Date();
-	$: if (value.endCondition.type === 'onDate') {
-		endDateForPicker = toDate(value.endCondition.onDate);
-	} else {
-		endDateForPicker = undefined;
+	interface Props {
+		allowedEndConditions?: EndCondition[];
+		path?: string;
+		value: RecurrenceMulti;
 	}
 
-	// Reactive validation
-	$: {
+	let {
+		allowedEndConditions = ['never', 'onDate', 'afterCount'] as const,
+		path = '',
+		value = $bindable({
+			frequency: 'once',
+			interval: 1,
+			startDate: new Date(),
+			endCondition: { type: 'afterCount', count: 1 },
+			timeWindows: [{ start: '09:00', end: '10:00' }],
+			exceptions: [],
+			timezone: 'UTC'
+		})
+	}: Props = $props();
+
+	// Validation state
+	let validationErrors: Record<string, string> = $state({});
+
+	// Date for adding exceptions
+	let newExceptionDate: Date | undefined = $state(undefined);
+
+	// Helper variables for date conversion - use state for two-way binding
+	let startDateForPicker = $state(toDate(value.startDate) ?? new Date());
+	let endDateForPicker = $state(
+		value.endCondition.type === 'onDate' ? toDate(value.endCondition.onDate) : undefined
+	);
+
+	// Sync startDateForPicker with value.startDate
+	$effect(() => {
+		startDateForPicker = toDate(value.startDate) ?? new Date();
+	});
+
+	// Sync endDateForPicker with value.endCondition
+	$effect(() => {
+		if (value.endCondition.type === 'onDate') {
+			endDateForPicker = toDate(value.endCondition.onDate);
+		} else {
+			endDateForPicker = undefined;
+		}
+	});
+
+	// Sync value.startDate with startDateForPicker changes
+	$effect(() => {
+		if (startDateForPicker) {
+			value.startDate = startDateForPicker;
+		}
+	});
+
+	// Sync value.endCondition.onDate with endDateForPicker changes
+	$effect(() => {
+		if (value.endCondition.type === 'onDate' && endDateForPicker) {
+			value.endCondition.onDate = endDateForPicker;
+		}
+	});
+
+	// Reactive validation using $effect
+	$effect(() => {
 		validationErrors = {};
 
 		// Normalize the recurrence to ensure timeWindows exists
@@ -97,32 +127,18 @@
 			const countError = validateCount(normalized.endCondition.count);
 			if (countError) validationErrors.afterCount = countError;
 		}
-	}
+	});
 
 	// Handle frequency change reactively
-	$: {
+	$effect(() => {
 		if (value.frequency !== 'weekly') {
 			if (value.weekdays) {
 				value.weekdays = undefined;
-				value = { ...value };
 			}
 		} else if (!value.weekdays) {
 			value.weekdays = [];
-			value = { ...value };
 		}
-	}
-
-	// Handle weekday toggle
-	function toggleWeekday(day: 'SU' | 'MO' | 'TU' | 'WE' | 'TH' | 'FR' | 'SA') {
-		if (!value.weekdays) value.weekdays = [];
-		const index = value.weekdays.indexOf(day);
-		if (index >= 0) {
-			value.weekdays.splice(index, 1);
-		} else {
-			value.weekdays.push(day);
-		}
-		value = { ...value };
-	}
+	});
 
 	// Handle end condition change
 	function onEndConditionChange(type: string) {
@@ -231,7 +247,7 @@
 	}
 
 	// Ensure timeWindows exists and normalize from timeRange if needed
-	$: {
+	$effect(() => {
 		if (!value.timeWindows?.length) {
 			if (value.timeRange) {
 				value.timeWindows = [value.timeRange];
@@ -239,19 +255,29 @@
 				value.timeWindows = [{ start: '09:00', end: '10:00' }];
 			}
 		}
-	}
+	});
 
 	// Get interval unit label
-	$: intervalUnit = (() => {
+	let intervalUnit = $derived.by(() => {
 		const units = { once: '', daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' };
 		const unit = units[value.frequency];
 		return value.interval === 1 ? unit : unit + 's';
-	})();
+	});
 
 	// Format date for display
 	function formatDate(date: Date): string {
 		return toDate(date)?.toLocaleDateString() ?? '';
 	}
+
+	let timeWindows = $state(value.timeWindows);
+
+	let recurrence = $state(value);
+	$effect(() => {
+		value = {
+			...recurrence,
+			timeWindows
+		};
+	});
 </script>
 
 <div class="space-y-4">
@@ -262,7 +288,7 @@
 			id="frequency-select"
 			name="{path}.frequency"
 			items={frequencyOptions}
-			bind:value={value.frequency}
+			bind:value={recurrence.frequency}
 		/>
 	</div>
 
@@ -279,7 +305,7 @@
 				id="interval-input"
 				type="number"
 				name="{path}.interval"
-				bind:value={value.interval}
+				bind:value={recurrence.interval}
 				min={1}
 				class="w-full"
 			/>
@@ -290,7 +316,7 @@
 	{/if}
 
 	<!-- Weekdays (for weekly frequency) -->
-	{#if value.frequency === 'weekly'}
+	{#if recurrence.frequency === 'weekly'}
 		<div>
 			<label class="mb-2 block text-sm font-medium">Repeat on</label>
 			<div class="flex gap-2">
@@ -305,7 +331,7 @@
 						<input
 							type="checkbox"
 							class="height-0 width-0 fixed appearance-none opacity-0"
-							bind:group={value.weekdays}
+							bind:group={recurrence.weekdays}
 							name="{path}.weekdays"
 							value={day.code}
 						/>
@@ -341,29 +367,21 @@
 		</div>
 
 		<div class="space-y-3">
-			{#each value.timeWindows || [] as window, index}
+			{#each timeWindows as _window, index}
 				<div class="flex items-center gap-2 rounded border p-3">
 					<div class="flex-1">
 						<div class="flex flex-wrap justify-between gap-2">
 							<div class="flex flex-wrap gap-2">
 								<div>
 									<label for="start-{index}" class="mb-1 block text-xs text-gray-600">Start</label>
-									<Timepicker
-										name="{path}.timeWindows[{index}].start"
-										id="start-{index}"
-										bind:value={window.start}
-									/>
+									<Timepicker id="start-{index}" bind:value={timeWindows[index].start} />
 								</div>
 								<div>
 									<label for="end-{index}" class="mb-1 block text-xs text-gray-600">End</label>
-									<Timepicker
-										name="{path}.timeWindows[{index}].start"
-										id="end-{index}"
-										bind:value={window.end}
-									/>
+									<Timepicker id="end-{index}" bind:value={timeWindows[index].end} />
 								</div>
 							</div>
-							{#if value.timeWindows && value.timeWindows.length > 1}
+							{#if timeWindows.length > 1}
 								<div class="flex flex-1 items-center justify-end">
 									<Button
 										outline
@@ -465,7 +483,7 @@
 						{formatDate(exception)}
 						<button
 							type="button"
-							on:click={() => removeException(index)}
+							onclick={() => removeException(index)}
 							class="ml-1 hover:text-red-600"
 						>
 							<TrashBinOutline size="xs" />
