@@ -1,17 +1,20 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { AuthService } from '$lib/auth';
-	import Button from './Button.svelte';
+	import { Button, Input, Alert, Card } from 'flowbite-svelte';
 
-	export let mode: 'signin' | 'signup' = 'signin';
-	export let onLogin: () => void = () => {
-		goto('/dashboard');
-	};
-	let email = '';
-	let password = '';
-	let loading = false;
-	let error = '';
-	let message = '';
+	interface Props {
+		mode?: 'signin' | 'signup';
+		onLogin?: () => void;
+	}
+
+	let { mode = $bindable('signin'), onLogin = () => goto('/dashboard') }: Props = $props();
+
+	let email = $state('');
+	let password = $state('');
+	let loading = $state(false);
+	let error = $state('');
+	let message = $state('');
 	async function handleSubmit() {
 		if (!email || !password) {
 			error = 'Please fill in all fields';
@@ -63,8 +66,14 @@
 	class="center flex w-full max-w-xs flex-col place-content-center content-center justify-center"
 >
 	<!-- Google Sign-In Button -->
-	<button type="button" class="google-btn" on:click={handleGoogleSignIn} disabled={loading}>
-		<svg width="18" height="18" viewBox="0 0 24 24">
+	<Button
+		type="button"
+		class="google-btn w-full"
+		color="alternative"
+		onclick={handleGoogleSignIn}
+		disabled={loading}
+	>
+		<svg width="18" height="18" viewBox="0 0 24 24" class="mr-2">
 			<path
 				fill="#4285F4"
 				d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -83,59 +92,63 @@
 			/>
 		</svg>
 		{loading ? 'Loading...' : `Continue with Google`}
-	</button>
+	</Button>
 
 	<div class="divider">
 		<span>or</span>
 	</div>
-	<div>
-		{#if message}
-			<p class="border-l-4 border-orange-500 bg-orange-100 p-4 text-orange-700">{message}</p>
-		{/if}
-	</div>
-	<form
-		on:submit|preventDefault={handleSubmit}
-		class="mb-4 rounded bg-white px-8 pb-8 pt-6 shadow-md"
-	>
-		<div class="mb-2 block text-gray-700">
-			<label class="mb-2 block text-sm font-bold text-gray-700" for="email">Email</label>
-			<input
-				id="email"
-				class="focus:shadow-outline w-full appearance-none rounded border px-3 py-2 leading-tight text-gray-700 shadow focus:outline-none"
-				type="email"
-				bind:value={email}
-				placeholder="Enter your email"
-				required
-			/>
-		</div>
+	{#if message}
+		<Alert color="yellow" class="mb-4">
+			{message}
+		</Alert>
+	{/if}
 
-		<div class="mb-2 block text-gray-700">
-			<label for="password" class="mb-2 block text-sm font-bold text-gray-700">Password</label>
-			<input
-				class="focus:shadow-outline w-full appearance-none rounded border px-3 py-2 leading-tight text-gray-700 shadow focus:outline-none"
-				id="password"
-				type="password"
-				bind:value={password}
-				placeholder="Enter your password"
-				required
-				minlength="6"
-			/>
-		</div>
+	<Card class="mb-4">
+		<form
+			onsubmit={(e) => {
+				e.preventDefault();
+				handleSubmit();
+			}}
+		>
+			<div class="mb-4">
+				<label for="email" class="mb-2 block text-sm font-medium text-gray-900">Email</label>
+				<Input id="email" type="email" bind:value={email} placeholder="Enter your email" required />
+			</div>
 
-		{#if error}
-			<p class="border-l-4 border-red-500 bg-red-100 p-4 text-red-700">{error}</p>
-		{/if}
+			<div class="mb-4">
+				<label for="password" class="mb-2 block text-sm font-medium text-gray-900">Password</label>
+				<Input
+					id="password"
+					type="password"
+					bind:value={password}
+					placeholder="Enter your password"
+					required
+					minlength={6}
+				/>
+			</div>
 
-		<Button type="submit" disabled={loading}>
-			{loading ? 'Loading...' : mode === 'signin' ? 'Sign In' : 'Sign Up'}
-		</Button>
-	</form>
+			{#if error}
+				<Alert color="red" class="mb-4">
+					{error}
+				</Alert>
+			{/if}
+
+			<Button type="submit" disabled={loading} class="w-full">
+				{loading ? 'Loading...' : mode === 'signin' ? 'Sign In' : 'Sign Up'}
+			</Button>
+		</form>
+	</Card>
 
 	<p class="toggle-mode">
 		{mode === 'signin' ? "Don't have an account?" : 'Already have an account?'}
-		<button type="button" on:click={toggleMode} class="link-button">
+		<Button
+			type="button"
+			onclick={toggleMode}
+			color="alternative"
+			class="link-button p-0 text-blue-600 underline"
+		>
 			{mode === 'signin' ? 'Sign Up' : 'Sign In'}
-		</button>
+		</Button>
 	</p>
 </div>
 
@@ -144,31 +157,10 @@
 		margin: 0 auto;
 	}
 
-	.google-btn {
-		width: 100%;
-		background: white;
-		color: #333;
-		border: 1px solid #dadce0;
-		padding: 0.75rem 1rem;
-		border-radius: 4px;
-		font-size: 1rem;
-		cursor: pointer;
-		transition: all 0.2s;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.5rem;
-		margin-bottom: 1rem;
-	}
-
-	.google-btn:hover:not(:disabled) {
-		background: #f8f9fa;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-	}
-
 	.divider {
 		text-align: center;
 		position: relative;
+		margin: 1rem 0;
 	}
 
 	.divider::before,
@@ -189,32 +181,9 @@
 		left: 0;
 	}
 
-	.error {
-		color: #dc3545;
-		margin-bottom: 1rem;
-		padding: 0.5rem;
-		background: #f8d7da;
-		border: 1px solid #f5c6cb;
-		border-radius: 4px;
-	}
-
 	.toggle-mode {
 		text-align: center;
 		margin-top: 1rem;
 		color: #666;
-	}
-
-	.link-button {
-		background: none;
-		border: none;
-		color: #007bff;
-		cursor: pointer;
-		text-decoration: underline;
-		padding: 0;
-		width: auto;
-	}
-
-	.link-button:hover {
-		color: #0056b3;
 	}
 </style>

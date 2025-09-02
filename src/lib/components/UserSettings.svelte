@@ -1,12 +1,10 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import OrganizationSettings from '$lib/components/OrganizationSettings.svelte';
 	import UserNameForm from '$lib/components/UserNameForm.svelte';
 	import UserAvatarForm from '$lib/components/UserAvatarForm.svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import { goto, invalidateAll } from '$app/navigation';
-	import Button from './Button.svelte';
+	import { Button } from 'flowbite-svelte';
+	import { goto } from '$app/navigation';
 	import type { Organization } from '../../model.types';
 
 	type OrgWithRole = {
@@ -14,14 +12,22 @@
 		role: 'OWNER' | 'ADMIN' | 'EDITOR' | 'MEMBER' | 'VIEWER' | null;
 	};
 
-	let error: string | null = null;
-	export let items: { id: string; name: string; slug: string; role: OrgWithRole['role'] }[] = [];
-	export let selected: Pick<
-		Organization,
-		'id' | 'name' | 'slug' | 'logo_url' | 'primary_color' | 'secondary_color' | 'accent_color'
-	> | null = null;
-	export let selectedRole: OrgWithRole['role'] = null;
-	let open = false;
+	interface Props {
+		items?: { id: string; name: string; slug: string; role: OrgWithRole['role'] }[];
+		selected?: Pick<
+			Organization,
+			'id' | 'name' | 'slug' | 'logo_url' | 'primary_color' | 'secondary_color' | 'accent_color'
+		> | null;
+		selectedRole?: OrgWithRole['role'];
+	}
+
+	let {
+		items = $bindable([]),
+		selected = $bindable(null),
+		selectedRole = $bindable(null)
+	}: Props = $props();
+
+	let open = $state(false);
 	// Load full org details on open as required
 
 	function editOrg(slug: string) {
@@ -53,13 +59,13 @@
 <section class="container">
 	<header class="mb-2 flex flex-1 justify-between">
 		<h1 class="mb-1">Settings</h1>
-		{#if $page.data.organizationContext}
+		{#if page.data.organizationContext}
 			<p>
-				Current organization: <strong>{$page.data.organizationContext.organization.name}</strong>
-				({$page.data.organizationContext.organization.slug})
+				Current organization: <strong>{page.data.organizationContext.organization.name}</strong>
+				({page.data.organizationContext.organization.slug})
 			</p>
 		{/if}
-		<Button onclick={handleSignOut} variant="secondary">Sign Out</Button>
+		<Button onclick={handleSignOut} color="alternative">Sign Out</Button>
 	</header>
 	<UserNameForm />
 	<UserAvatarForm />
@@ -86,7 +92,7 @@
 								<td>{it.role ?? '—'}</td>
 								<td style="text-align:right">
 									{#if it.role === 'OWNER' || it.role === 'ADMIN'}
-										<button class="btn" on:click={() => editOrg(it.slug)}>Edit</button>
+										<Button onclick={() => editOrg(it.slug)} size="sm">Edit</Button>
 									{/if}
 								</td>
 							</tr>

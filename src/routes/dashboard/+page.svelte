@@ -1,15 +1,20 @@
 <script lang="ts">
 	import BallotCard from '$lib/components/BallotCard.svelte';
-	import Button from '$lib/components/Button.svelte';
+	import { Button } from 'flowbite-svelte';
 	import type { BallotWithVotes } from '$lib/types';
-	export let data: {
-		openBallots: BallotWithVotes[];
-		recentBallots: BallotWithVotes[];
-		totalBallots: number;
-		canCreateBallot: boolean;
-	};
-	$: openBallots = data.openBallots;
-	$: recentBallots = data.recentBallots;
+
+	interface Props {
+		data: {
+			openBallots: BallotWithVotes[];
+			recentBallots: BallotWithVotes[];
+			totalBallots: number;
+			canCreateBallot: boolean;
+		};
+	}
+
+	let { data }: Props = $props();
+	let openBallots = $derived(data.openBallots);
+	let recentBallots = $derived(data.recentBallots);
 </script>
 
 <div class="container">

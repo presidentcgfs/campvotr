@@ -1,13 +1,16 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import BallotCard from '$lib/components/BallotCard.svelte';
 	import CreateBallotForm from '$lib/components/CreateBallotForm.svelte';
 	import type { Ballot, BallotWithVotes } from '$lib/types';
-	import Button from '$lib/components/Button.svelte';
-	export let data: { ballots: BallotWithVotes[]; canCreateBallot: boolean };
-	let ballots: BallotWithVotes[] = data.ballots;
-	let error = '';
-	let showCreateForm = false;
+	import { Button } from 'flowbite-svelte';
+
+	interface Props {
+		data: { ballots: BallotWithVotes[]; canCreateBallot: boolean };
+	}
+
+	let { data }: Props = $props();
+	let ballots = $state(data.ballots);
+	let showCreateForm = $state(false);
 
 	function handleBallotCreated(payload: { ballot: Ballot }) {
 		ballots = [payload.ballot as unknown as BallotWithVotes, ...ballots];
@@ -36,7 +39,7 @@
 			<h3>No ballots found</h3>
 			<p>Create your first ballot to get started.</p>
 			{#if !showCreateForm}
-				<button on:click={toggleCreateForm} class="btn"> Create New Ballot </button>
+				<Button onclick={toggleCreateForm} color="blue">Create New Ballot</Button>
 			{/if}
 		</div>
 	{:else}

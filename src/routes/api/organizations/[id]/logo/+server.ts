@@ -30,9 +30,9 @@ export const POST: RequestHandler = async (event) =>
 		// For now, we simulate a stored URL using a data URL or temporary path. Replace with real storage.
 		const arrayBuf = await file.arrayBuffer();
 		const base64 = Buffer.from(arrayBuf).toString('base64');
-		const fakeUrl = `data:${file.type};base64,${base64}`;
+		const logoUrl = `data:${file.type};base64,${base64}`;
 
-		await orgService.updateOrganization(id, { logo_url: fakeUrl });
+		await orgService.updateOrganization(id, { logoUrl });
 
-		return json({ logoUrl: fakeUrl });
+		return json({ logoUrl });
 	});

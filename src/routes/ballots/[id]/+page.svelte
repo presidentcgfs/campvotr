@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { RealtimeVoteTracker } from '$lib/realtime';
 	import type { BallotWithVotes, VoteChoice } from '$lib/types';
 	import { formatDateTime } from '$lib/utils/date';
@@ -8,26 +8,31 @@
 	import Markdown from '$lib/components/Markdown.svelte';
 	import TieBreakResolver from '$lib/components/TieBreakResolver.svelte';
 	import OpenVotingModal from '$lib/components/OpenVotingModal.svelte';
-	import Button from '$lib/components/Button.svelte';
+	import { Button, Radio } from 'flowbite-svelte';
 	import { invalidate } from '$app/navigation';
 
-	// import OpenVotingModal from '$lib/components/OpenVotingModal.svelte';
-	export let data: { ballot: BallotWithVotes };
+	interface Props {
+		data: { ballot: BallotWithVotes };
+	}
 
-	let ballot: BallotWithVotes = data.ballot;
-	let voting = false;
-	let voteError = '';
+	let { data }: Props = $props();
+
+	let ballot = $state<BallotWithVotes>(data.ballot);
+	let voting = $state(false);
+	let voteError = $state('');
 	let realtimeTracker: RealtimeVoteTracker | null = null;
-	let showOpenVotingModal = false;
-	let selectedChoice: VoteChoice | null = null;
+	let showOpenVotingModal = $state(false);
+	let selectedChoice = $state<VoteChoice | null>(null);
 
-	$: isOpen = ballot?.status === 'open';
-	$: isDraft = ballot?.status === 'draft';
-	$: votingStarted = ballot ? new Date() >= new Date(ballot.voting_opens_at) : false;
-	$: votingEnded = ballot ? new Date() > new Date(ballot.voting_closes_at) : false;
-	$: canVote = isOpen && votingStarted && !votingEnded;
-	$: isCreator = ballot && $page.data.user ? ballot.creator_id === $page.data.user.id : false;
-	$: canOpenVoting = ballot?.status != 'closed' && isCreator;
+	let isOpen = $derived(ballot?.status === 'open');
+	let isDraft = $derived(ballot?.status === 'draft');
+	let votingStarted = $derived(ballot ? new Date() >= new Date(ballot.voting_opens_at) : false);
+	let votingEnded = $derived(ballot ? new Date() > new Date(ballot.voting_closes_at) : false);
+	let canVote = $derived(isOpen && votingStarted && !votingEnded);
+	let isCreator = $derived(
+		ballot && page.data.user ? ballot.creator_id === page.data.user.id : false
+	);
+	let canOpenVoting = $derived(ballot?.status != 'closed' && isCreator);
 
 	onMount(async () => {
 		// Set up real-time tracking via cookie-authenticated SSE (no token needed)

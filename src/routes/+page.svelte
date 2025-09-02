@@ -1,5 +1,6 @@
-<script>
+<script lang="ts">
 	import { page } from '$app/state';
+	import { Button, Card } from 'flowbite-svelte';
 </script>
 
 <div class="container">
@@ -11,12 +12,12 @@
 
 		{#if page.data.user}
 			<div class="hero-actions">
-				<a href="/dashboard" class="btn">Go to Dashboard</a>
-				<a href="/ballots" class="btn btn-secondary">View Ballots</a>
+				<Button href="/dashboard" color="blue" size="lg">Go to Dashboard</Button>
+				<Button href="/ballots" color="alternative" size="lg">View Ballots</Button>
 			</div>
 		{:else}
 			<div class="hero-actions">
-				<a href="/auth" class="btn">Get Started</a>
+				<Button href="/auth" color="blue" size="lg">Get Started</Button>
 			</div>
 		{/if}
 	</div>
@@ -24,25 +25,25 @@
 	<div class="features">
 		<h2>Features</h2>
 		<div class="grid-2 grid">
-			<div class="card">
+			<Card>
 				<h3>🗳️ Democratic Voting</h3>
 				<p>
 					Create voting ballots with configurable time periods. Support for Yea, Nay, and Abstain
 					votes.
 				</p>
-			</div>
-			<div class="card">
+			</Card>
+			<Card>
 				<h3>📊 Real-time Results</h3>
 				<p>Watch vote counts update in real-time as participants cast their votes.</p>
-			</div>
-			<div class="card">
+			</Card>
+			<Card>
 				<h3>🔍 Full Transparency</h3>
 				<p>Complete voting history with timestamps showing who voted when and how.</p>
-			</div>
-			<div class="card">
+			</Card>
+			<Card>
 				<h3>🔔 Smart Notifications</h3>
 				<p>Get notified about new ballots, voting reminders, and when voting periods close.</p>
-			</div>
+			</Card>
 		</div>
 	</div>
 </div>

@@ -244,11 +244,11 @@ export class OrganizationService extends BaseService {
 				id: org.id,
 				name: org.name,
 				slug: org.slug,
-				logo_url: org.logo_url ?? null,
-				primary_color: org.primary_color,
-				secondary_color: org.secondary_color,
-				accent_color: org.accent_color,
-				primary_domain: org.primary_domain ?? null
+				logoUrl: org.logoUrl ?? null,
+				primaryColor: org.primaryColor,
+				secondaryColor: org.secondaryColor,
+				accentColor: org.accentColor,
+				primaryDomain: org.primaryDomain ?? null
 			},
 			role: m.role as OrgRole
 		};
@@ -266,13 +266,13 @@ export class OrganizationService extends BaseService {
 
 	async updateOrganization(
 		id: string,
-		data: Partial<Omit<InferSelectModel<typeof organizations>, 'id' | 'created_at' | 'updated_at'>>
+		data: Partial<Omit<InferSelectModel<typeof organizations>, 'id' | 'created_at' | 'updatedAt'>>
 	) {
 		return this.db
 			.update(organizations)
 			.set({
 				...data,
-				updated_at: new Date()
+				updatedAt: new Date()
 			})
 			.where(eq(organizations.id, id))
 			.returning();
@@ -284,7 +284,7 @@ export class OrganizationService extends BaseService {
 				.from(organizationMemberships)
 				.where(
 					and(
-						eq(organizationMemberships.organization_id, organizationId),
+						eq(organizationMemberships.organizationId, organizationId),
 						eq(organizationMemberships.role, 'OWNER')
 					)
 				);
@@ -295,8 +295,8 @@ export class OrganizationService extends BaseService {
 					.from(organizationMemberships)
 					.where(
 						and(
-							eq(organizationMemberships.organization_id, organizationId),
-							eq(organizationMemberships.user_id, userId)
+							eq(organizationMemberships.organizationId, organizationId),
+							eq(organizationMemberships.userId, userId)
 						)
 					)
 					.limit(1);
@@ -306,11 +306,11 @@ export class OrganizationService extends BaseService {
 
 		const [updated] = await this.db
 			.update(organizationMemberships)
-			.set({ role, updated_at: new Date() })
+			.set({ role, updatedAt: new Date() })
 			.where(
 				and(
-					eq(organizationMemberships.organization_id, organizationId),
-					eq(organizationMemberships.user_id, userId)
+					eq(organizationMemberships.organizationId, organizationId),
+					eq(organizationMemberships.userId, userId)
 				)
 			)
 			.returning();
@@ -322,8 +322,8 @@ export class OrganizationService extends BaseService {
 		const result = await this.db
 			.select()
 			.from(organizationMemberships)
-			.leftJoin(authUsers, eq(organizationMemberships.user_id, authUsers.id))
-			.where(eq(organizationMemberships.organization_id, organizationId));
+			.leftJoin(authUsers, eq(organizationMemberships.userId, authUsers.id))
+			.where(eq(organizationMemberships.organizationId, organizationId));
 		return result.map((m) => ({
 			...m.organization_memberships,
 			user: m.users
@@ -333,22 +333,22 @@ export class OrganizationService extends BaseService {
 	async createOrUpdateMember(organizationId: string, userId: string, role: OrgRole) {
 		const [member] = await this.db
 			.insert(organizationMemberships)
-			.values({ organization_id: organizationId, user_id: userId, role })
+			.values({ organizationId: organizationId, userId: userId, role })
 			.onConflictDoUpdate({
-				target: [organizationMemberships.organization_id, organizationMemberships.user_id],
-				set: { role, updated_at: new Date() }
+				target: [organizationMemberships.organizationId, organizationMemberships.userId],
+				set: { role, updatedAt: new Date() }
 			})
 			.returning();
 		return member;
 	}
 
-	async createOrUpdateInvite(organization_id: string, email: string, role: OrgRole) {
+	async createOrUpdateInvite(organizationId: string, email: string, role: OrgRole) {
 		const [invite] = await this.db
 			.insert(organizationInvites)
-			.values({ organization_id, email, role })
+			.values({ organizationId, email, role })
 			.onConflictDoUpdate({
-				target: [organizationInvites.organization_id, organizationInvites.email],
-				set: { role, updated_at: new Date(), accepted_at: null }
+				target: [organizationInvites.organizationId, organizationInvites.email],
+				set: { role, updatedAt: new Date(), acceptedAt: null }
 			})
 			.returning();
 		return invite;
@@ -361,8 +361,8 @@ export class OrganizationService extends BaseService {
 			.from(organizationMemberships)
 			.where(
 				and(
-					eq(organizationMemberships.organization_id, organizationId),
-					eq(organizationMemberships.user_id, userId)
+					eq(organizationMemberships.organizationId, organizationId),
+					eq(organizationMemberships.userId, userId)
 				)
 			)
 			.limit(1);
@@ -377,7 +377,7 @@ export class OrganizationService extends BaseService {
 				.from(organizationMemberships)
 				.where(
 					and(
-						eq(organizationMemberships.organization_id, organizationId),
+						eq(organizationMemberships.organizationId, organizationId),
 						eq(organizationMemberships.role, 'OWNER')
 					)
 				);
@@ -390,8 +390,8 @@ export class OrganizationService extends BaseService {
 			.delete(organizationMemberships)
 			.where(
 				and(
-					eq(organizationMemberships.organization_id, organizationId),
-					eq(organizationMemberships.user_id, userId)
+					eq(organizationMemberships.organizationId, organizationId),
+					eq(organizationMemberships.userId, userId)
 				)
 			);
 
@@ -409,7 +409,7 @@ export class OrganizationService extends BaseService {
 
 		const [updated] = await this.db
 			.update(organizations)
-			.set({ tie_breaker_user_id: userId, updated_at: new Date() })
+			.set({ tieBreakerUserId: userId, updatedAt: new Date() })
 			.where(eq(organizations.id, organizationId))
 			.returning();
 
@@ -418,12 +418,12 @@ export class OrganizationService extends BaseService {
 
 	async getTieBreaker(organizationId: string) {
 		const [org] = await this.db
-			.select({ tie_breaker_user_id: organizations.tie_breaker_user_id })
+			.select({ tie_breaker_userId: organizations.tieBreakerUserId })
 			.from(organizations)
 			.where(eq(organizations.id, organizationId))
 			.limit(1);
 
-		return org?.tie_breaker_user_id ?? null;
+		return org?.tie_breaker_userId ?? null;
 	}
 
 	static normalizeDomain(input: string): string | null {
