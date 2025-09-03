@@ -1,7 +1,23 @@
 <script lang="ts">
 	import BallotCard from '$lib/components/BallotCard.svelte';
+	import DrawSessionCard from '$lib/components/DrawSessionCard.svelte';
 	import { Button } from 'flowbite-svelte';
 	import type { BallotWithVotes } from '$lib/types';
+
+	interface DrawSession {
+		id: string;
+		name: string;
+		status: 'scheduled' | 'active' | 'paused' | 'completed' | 'cancelled';
+		turnStrategy: 'fixed' | 'randomized' | 'snake' | 'random' | 'round_robin';
+		rounds: number | null;
+		pickTimeoutSec: number;
+		startsAtUtc: Date | string | null;
+		startDate: Date | string;
+		endDate: Date | string;
+		createdAt: Date | string;
+		updatedAt: Date | string;
+		participantCount: number;
+	}
 
 	interface Props {
 		data: {
@@ -9,12 +25,17 @@
 			recentBallots: BallotWithVotes[];
 			totalBallots: number;
 			canCreateBallot: boolean;
+			drawSessions: DrawSession[];
+			openDrawSessions: DrawSession[];
+			totalDrawSessions: number;
 		};
 	}
 
 	let { data }: Props = $props();
 	let openBallots = $derived(data.openBallots);
 	let recentBallots = $derived(data.recentBallots);
+	let drawSessions = $derived(data.drawSessions || []);
+	let openDrawSessions = $derived(data.openDrawSessions || []);
 </script>
 
 <div class="container">
@@ -30,6 +51,14 @@
 				<div class="stat-card">
 					<div class="stat-number">{recentBallots.length}</div>
 					<div class="stat-label">My Ballots</div>
+				</div>
+				<div class="stat-card">
+					<div class="stat-number">{openDrawSessions.length}</div>
+					<div class="stat-label">Open Draws</div>
+				</div>
+				<div class="stat-card">
+					<div class="stat-number">{data.totalDrawSessions}</div>
+					<div class="stat-label">My Draws</div>
 				</div>
 			</div>
 		</div>
@@ -49,6 +78,26 @@
 				<div class="ballots-list">
 					{#each recentBallots as ballot (ballot.id)}
 						<BallotCard {ballot} />
+					{/each}
+				</div>
+			{/if}
+		</div>
+
+		<!-- My Draw Sessions -->
+		<div class="ballots-section">
+			<div class="section-header">
+				<h2>My Draw Sessions</h2>
+				<!-- TODO: Add /draw-sessions route for viewing all user's draw sessions -->
+			</div>
+
+			{#if drawSessions.length === 0}
+				<p class="empty-message">
+					No draw sessions yet. You'll see draw sessions here when you're invited to participate.
+				</p>
+			{:else}
+				<div class="ballots-list">
+					{#each drawSessions as session (session.id)}
+						<DrawSessionCard {session} />
 					{/each}
 				</div>
 			{/if}

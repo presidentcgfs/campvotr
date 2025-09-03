@@ -10,26 +10,22 @@
 	import type { Snippet } from 'svelte';
 
 	const { children } = $props<{ children: Snippet }>();
-
+	const user = $state(page.data.user ?? undefined);
 	if (browser)
 		AuthService.onAuthStateChange((ess) => {
 			console.log('auth change', ess);
 		});
 
-	const org = $state(page.data.organizationContext?.organization ?? null);
+	const organization = $state(page.data.organizationContext?.organization);
 
 	$effect(() => {
-		if (browser && org) {
-			applyTheme({
-				primaryColor: org.primary_color,
-				secondaryColor: org.secondary_color,
-				accentColor: org.accent_color
-			});
+		if (browser && organization) {
+			applyTheme(organization);
 		}
 	});
 </script>
 
-<Navigation />
+<Navigation {user} {organization} />
 
 <main class="mx-auto max-w-screen-2xl pt-[70px]">
 	{@render children()}

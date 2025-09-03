@@ -5,11 +5,12 @@ import {
 	drawScheduleFields,
 	drawSchedules,
 	drawSessions,
+	drawSessionParticipants,
 	fields,
 	participants,
 	picks
 } from '$lib/db/schema';
-import { and, asc, count, desc, eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq, sql } from 'drizzle-orm';
 import { calculateCurrentTurn, type Participant } from './turn-order';
 
 export type TurnStrategy = 'fixed' | 'randomized' | 'snake' | 'random' | 'round_robin';
@@ -183,5 +184,102 @@ export class DrawSessionService extends BaseService {
 			.where(eq(drawSessions.organizationId, organizationId))
 			.orderBy(desc(drawSessions.createdAt));
 		return rows;
+	}
+
+	async getUserSessions(organizationId: string, userId: string, userEmail: string) {
+		// Get sessions where user is a participant (either by userId or email)
+		// First, get sessions from the participants table (older system)
+		const sessionsByUserId = await this.db
+			.select({
+				id: drawSessions.id,
+				name: drawSessions.name,
+				status: drawSessions.status,
+				turnStrategy: drawSessions.turnStrategy,
+				rounds: drawSessions.rounds,
+				pickTimeoutSec: drawSessions.pickTimeoutSec,
+				startsAtUtc: drawSessions.startsAtUtc,
+				startDate: drawSessions.startDate,
+				endDate: drawSessions.endDate,
+				createdAt: drawSessions.createdAt,
+				updatedAt: drawSessions.updatedAt,
+				participantCount: count(participants.id)
+			})
+			.from(drawSessions)
+			.innerJoin(participants, eq(participants.drawSessionId, drawSessions.id))
+			.where(and(eq(drawSessions.organizationId, organizationId), eq(participants.userId, userId)))
+			.groupBy(drawSessions.id)
+			.orderBy(
+				// Open draws first (active, scheduled), then others
+				desc(
+					sql`CASE
+						WHEN ${drawSessions.status} IN ('active', 'scheduled') THEN 1
+						ELSE 0
+					END`
+				),
+				desc(drawSessions.createdAt)
+			);
+
+		// Then get sessions from the drawSessionParticipants table (newer system)
+		const sessionsByEmail = await this.db
+			.select({
+				id: drawSessions.id,
+				name: drawSessions.name,
+				status: drawSessions.status,
+				turnStrategy: drawSessions.turnStrategy,
+				rounds: drawSessions.rounds,
+				pickTimeoutSec: drawSessions.pickTimeoutSec,
+				startsAtUtc: drawSessions.startsAtUtc,
+				startDate: drawSessions.startDate,
+				endDate: drawSessions.endDate,
+				createdAt: drawSessions.createdAt,
+				updatedAt: drawSessions.updatedAt,
+				participantCount: count(drawSessionParticipants.id)
+			})
+			.from(drawSessions)
+			.innerJoin(
+				drawSessionParticipants,
+				eq(drawSessionParticipants.drawSessionId, drawSessions.id)
+			)
+			.where(
+				and(
+					eq(drawSessions.organizationId, organizationId),
+					eq(drawSessionParticipants.email, userEmail)
+				)
+			)
+			.groupBy(drawSessions.id)
+			.orderBy(
+				// Open draws first (active, scheduled), then others
+				desc(
+					sql`CASE
+						WHEN ${drawSessions.status} IN ('active', 'scheduled') THEN 1
+						ELSE 0
+					END`
+				),
+				desc(drawSessions.createdAt)
+			);
+
+		// Combine and deduplicate results
+		const allSessions = [...sessionsByUserId, ...sessionsByEmail];
+		const uniqueSessions = allSessions.reduce(
+			(acc, session) => {
+				if (!acc.find((s) => s.id === session.id)) {
+					acc.push(session);
+				}
+				return acc;
+			},
+			[] as typeof allSessions
+		);
+
+		// Re-sort the combined results
+		return uniqueSessions.sort((a, b) => {
+			// Open draws first
+			const aIsOpen = ['active', 'scheduled'].includes(a.status);
+			const bIsOpen = ['active', 'scheduled'].includes(b.status);
+			if (aIsOpen && !bIsOpen) return -1;
+			if (!aIsOpen && bIsOpen) return 1;
+
+			// Then by creation date
+			return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+		});
 	}
 }

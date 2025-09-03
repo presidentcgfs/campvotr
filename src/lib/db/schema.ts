@@ -90,6 +90,13 @@ export const organizationInvites = pgTable(
 	})
 ).enableRLS();
 
+export const organizationInvitesRelations = relations(organizationInvites, ({ one }) => ({
+	organization: one(organizations, {
+		fields: [organizationInvites.organizationId],
+		references: [organizations.id]
+	})
+}));
+
 // Tables
 export const voters = pgTable('voters', {
 	id: uuid('id').primaryKey().defaultRandom(),

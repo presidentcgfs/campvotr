@@ -14,10 +14,11 @@
 	let error = '';
 	let organization: Organization | undefined = undefined;
 
-	$: primary = organization?.primary_color ?? '#2563eb';
-	$: secondary = organization?.secondary_color ?? '#64748b';
-	$: accent = organization?.accent_color ?? '#22c55e';
-	$: domainInput = organization?.primary_domain;
+	$: primaryColor = organization?.primaryColor ?? '#2563eb';
+	$: secondaryColor = organization?.secondaryColor ?? '#64748b';
+	$: accentColor = organization?.accentColor ?? '#22c55e';
+	$: domain = organization?.primaryDomain;
+	$: name = organization?.name ?? '';
 
 	let success = '';
 	let loading = false;
@@ -35,11 +36,19 @@
 	onMount(() => {
 		mounted = true;
 		// Initialize form values from incoming org
-		applyTheme({ primaryColor: primary, secondaryColor: secondary, accentColor: accent });
+		applyTheme({
+			primaryColor: primaryColor,
+			secondaryColor: secondaryColor,
+			accentColor: accentColor
+		});
 	});
 
-	$: if (primary && secondary && accent && mounted) {
-		applyTheme({ primaryColor: primary, secondaryColor: secondary, accentColor: accent });
+	$: if (primaryColor && secondaryColor && accentColor && mounted) {
+		applyTheme({
+			primaryColor: primaryColor,
+			secondaryColor: secondaryColor,
+			accentColor: accentColor
+		});
 	}
 
 	async function uploadLogo(logoFile: File) {
@@ -60,7 +69,7 @@
 			});
 			if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
 			const data = await res.json();
-			organization.logo_url = data.logoUrl;
+			organization.logoUrl = data.logoUrl;
 		} catch (e: any) {
 			error = e.message ?? 'Upload failed';
 		}
@@ -70,18 +79,15 @@
 		if (!organization) return;
 		error = '';
 		try {
-			if (![primary, secondary, accent].every(validateHexColor)) throw new Error('Invalid color');
 			const res = await fetch(`/api/organizations/${organization.id}`, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					name: organization.name,
-					theme: {
-						primaryColor: normalizeHexColor(primary),
-						secondaryColor: normalizeHexColor(secondary),
-						accentColor: normalizeHexColor(accent)
-					},
-					domain: domainInput
+					name,
+					primaryColor,
+					secondaryColor,
+					accentColor,
+					domain
 				})
 			});
 			if (!res.ok) {
@@ -97,6 +103,11 @@
 			}
 			const data = await res.json();
 			organization = data.organization;
+			applyTheme({
+				primaryColor: primaryColor,
+				secondaryColor: secondaryColor,
+				accentColor: accentColor
+			});
 			success = 'Saved';
 			setTimeout(() => (success = ''), 2000);
 		} catch (e: any) {
@@ -134,10 +145,19 @@
 		<section>
 			<div class="grid grid-cols-[220px_1fr] gap-4">
 				<div class="col-span-2">
+					<label for="name" class="mb-2 block font-semibold">Name</label>
+					<input
+						id="name"
+						type="text"
+						bind:value={name}
+						class="focus:ring-primary w-full rounded-md border border-gray-300 px-3 py-2 focus:ring-2 focus:outline-none"
+					/>
+				</div>
+				<div class="col-span-2">
 					<label for="logo-input" class="mb-2 block font-semibold">Logo</label>
-					{#if organization?.logo_url}
+					{#if organization?.logoUrl}
 						<img
-							src={organization.logo_url}
+							src={organization.logoUrl}
 							alt="Logo"
 							class="mb-2 block max-h-[120px] max-w-[200px]"
 						/>
@@ -157,9 +177,9 @@
 						id="primary-domain"
 						type="text"
 						placeholder="example.org"
-						bind:value={domainInput}
+						bind:value={domain}
 						readonly={!(role === 'OWNER' || role === 'ADMIN')}
-						class="focus:ring-primary w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2"
+						class="focus:ring-primary w-full rounded-md border border-gray-300 px-3 py-2 focus:ring-2 focus:outline-none"
 					/>
 					<small class="mt-1 block text-sm text-gray-600"
 						>Used to select this organization when visiting this hostname. Do not include
@@ -173,7 +193,7 @@
 						<input
 							id="primary-color"
 							type="color"
-							bind:value={primary}
+							bind:value={primaryColor}
 							class="ml-2 h-5 w-5 cursor-pointer rounded-full border-0 p-0"
 						/>
 					</label>
@@ -182,7 +202,7 @@
 						<input
 							id="secondary-color"
 							type="color"
-							bind:value={secondary}
+							bind:value={secondaryColor}
 							class="ml-2 h-5 w-5 cursor-pointer rounded-full border-0 p-0"
 						/>
 					</label>
@@ -191,13 +211,13 @@
 						<input
 							id="accent-color"
 							type="color"
-							bind:value={accent}
+							bind:value={accentColor}
 							class="ml-2 h-5 w-5 cursor-pointer rounded-full border-0 p-0"
 						/>
 					</label>
 					<div
 						class="mt-4 flex items-center gap-3"
-						style="--primary-color: {primary}; --secondary-color: {secondary}; --accent-color: {accent}"
+						style="--primary-color: {primaryColor}; --secondary-color: {secondaryColor}; --accent-color: {accentColor}"
 					>
 						<Button>Primary Button</Button>
 						<Button variant="tertiary" href="/">Link</Button>

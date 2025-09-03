@@ -7,6 +7,7 @@ export type Theme = {
 const HEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 export function validateHexColor(input: string): boolean {
+	console.log({ input });
 	return HEX.test(input.trim());
 }
 

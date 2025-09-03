@@ -1,6 +1,24 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { Button, Card } from 'flowbite-svelte';
+	import DrawSessionCard from '$lib/components/DrawSessionCard.svelte';
+
+	interface DrawSession {
+		id: string;
+		name: string;
+		status: 'scheduled' | 'active' | 'paused' | 'completed' | 'cancelled';
+		turnStrategy: 'fixed' | 'randomized' | 'snake' | 'random' | 'round_robin';
+		rounds: number | null;
+		pickTimeoutSec: number;
+		startsAtUtc: Date | string | null;
+		startDate: Date | string;
+		endDate: Date | string;
+		createdAt: Date | string;
+		updatedAt: Date | string;
+		participantCount: number;
+	}
+
+	let activeDrawSessions = $derived((page.data.activeDrawSessions || []) as DrawSession[]);
 </script>
 
 <div class="container">
@@ -21,6 +39,19 @@
 			</div>
 		{/if}
 	</div>
+
+	<!-- Active Draw Sessions -->
+	{#if page.data.user && activeDrawSessions.length > 0}
+		<div class="active-draws">
+			<h2>🎯 Active Draws</h2>
+			<p class="section-subtitle">Join these active draw sessions now!</p>
+			<div class="draws-grid">
+				{#each activeDrawSessions as session (session.id)}
+					<DrawSessionCard {session} />
+				{/each}
+			</div>
+		</div>
+	{/if}
 
 	<div class="features">
 		<h2>Features</h2>
@@ -77,6 +108,31 @@
 		flex-wrap: wrap;
 	}
 
+	.active-draws {
+		margin-bottom: 4rem;
+		text-align: center;
+	}
+
+	.active-draws h2 {
+		font-size: 2rem;
+		margin-bottom: 0.5rem;
+		color: #007bff;
+	}
+
+	.section-subtitle {
+		font-size: 1.1rem;
+		color: #666;
+		margin-bottom: 2rem;
+	}
+
+	.draws-grid {
+		display: grid;
+		gap: 1.5rem;
+		max-width: 800px;
+		margin: 0 auto;
+		text-align: left;
+	}
+
 	.features h2 {
 		text-align: center;
 		margin-bottom: 2rem;
@@ -100,6 +156,18 @@
 		.hero-actions {
 			flex-direction: column;
 			align-items: center;
+		}
+
+		.active-draws h2 {
+			font-size: 1.5rem;
+		}
+
+		.section-subtitle {
+			font-size: 1rem;
+		}
+
+		.draws-grid {
+			gap: 1rem;
 		}
 	}
 </style>
