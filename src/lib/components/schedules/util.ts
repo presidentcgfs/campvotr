@@ -2,6 +2,17 @@ import { getRecurrenceMultiDescription } from '../recurrence/recurrence-utils';
 import type { Field, ScheduleUI } from './types';
 
 export const dayOrder = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+export const dayNamesLong = [
+	'Sunday',
+	'Monday',
+	'Tuesday',
+	'Wednesday',
+	'Thursday',
+	'Friday',
+	'Saturday'
+];
+export const dayNamesShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 export const dayNames = {
 	MO: 'Mon',
 	TU: 'Tue',

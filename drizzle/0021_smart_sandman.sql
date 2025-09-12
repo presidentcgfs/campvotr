@@ -1,0 +1,1 @@
+ALTER TABLE "time_slots" ADD COLUMN "weekday" integer NOT NULL;

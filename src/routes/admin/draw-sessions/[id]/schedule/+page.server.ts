@@ -3,10 +3,16 @@ import { withAuthRedirect } from '$lib/services/middleware';
 import { drawSessionServiceKey } from '$lib/services/draw-session-service';
 import { timeSlotServiceKey } from '$lib/services/timeslot-service';
 import { pickServiceKey } from '$lib/services/pick-service';
-import { generateTimeSlotsMulti } from '$lib/components/recurrence/recurrence-utils';
 import { redirect } from '@sveltejs/kit';
-import { dayNames } from '$lib/components/schedules/util';
-import { fieldServiceKey } from '$lib/services/field-service';
+import { extractResponse, parseResponse } from '$lib/utils/parse';
+
+import {
+	unassignActionSchema,
+	pickActionSchema,
+	blockActionSchema,
+	unblockActionSchema
+} from '$lib/schemas/draw-session-schemas';
+import { timeSlotInsertSchema } from '$lib/db/zod';
 
 export const load: PageServerLoad = withAuthRedirect(
 	async ({ params, locals: { resolve, organizationContext } }) => {
@@ -17,206 +23,172 @@ export const load: PageServerLoad = withAuthRedirect(
 
 		const sessionId = params.id;
 		if (!sessionId) {
-			redirect(302, '/admin/draw-sessions');
+			return redirect(302, '/admin/draw-sessions');
 		}
 
-		const drawSessionService = resolve(drawSessionServiceKey);
 		const timeSlotService = resolve(timeSlotServiceKey);
 
-		// Load session with schedules and fields
-		const session = await drawSessionService.loadSession(sessionId);
-		if (!session || session.organizationId !== orgId) {
-			redirect(302, '/admin/draw-sessions');
-		}
-
-		// Load session state to get participants
-		const sessionState = await drawSessionService.fetchSessionState(orgId, sessionId);
-		const participants = sessionState?.participants || [];
-
-		// Generate recurring time slot patterns from the session's schedules
-		const timeSlots: {
-			id: string;
-			fieldId: string;
-			fieldName: string;
-			weekday: string;
-			weekdayName: string;
-			startTime: string;
-			endTime: string;
-			startUtc: string;
-			endUtc: string;
-			status: string;
-			assignedParticipantId: string | null;
-			organizationId: string;
-			isPattern: boolean;
-		}[] = [];
-
-		// Generate time slot patterns from each schedule
-		session.schedules?.forEach((schedule) => {
-			if (schedule.recurrence && schedule.fields) {
-				const recurrence = schedule.recurrence as any;
-
-				// Get weekdays from the recurrence
-				const weekdays = recurrence.weekdays || [];
-				const timeWindows = recurrence.timeWindows || [];
-
-				// Create time slot patterns for each combination of weekday + time window + field
-				schedule.fields.forEach((field) => {
-					weekdays.forEach((weekday: string) => {
-						timeWindows.forEach((timeWindow: any, windowIndex: number) => {
-							// Create a pattern-based time slot (not literal dates)
-							timeSlots.push({
-								id: `pattern-${field.fieldId}-${weekday}-${windowIndex}`,
-								fieldId: field.fieldId,
-								fieldName: field.field?.name,
-								weekday: weekday,
-								weekdayName: dayNames[weekday as keyof typeof dayNames] || weekday,
-								startTime: timeWindow.start,
-								endTime: timeWindow.end,
-								// For display purposes, create sample UTC timestamps for this week
-								startUtc: createSampleDateTime(weekday, timeWindow.start),
-								endUtc: createSampleDateTime(weekday, timeWindow.end),
-								status: 'available',
-								assignedParticipantId: null,
-								organizationId: orgId,
-								isPattern: true // Flag to indicate this is a recurring pattern
-							});
-						});
-					});
-				});
-			}
-		});
-
-		// Helper function to create sample datetime for display
-		function createSampleDateTime(weekday: string, time: string): string {
-			const dayMap = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 };
-			const targetDay = dayMap[weekday as keyof typeof dayMap];
-
-			const now = new Date();
-			const currentDay = now.getUTCDay();
-			const daysUntilTarget = (targetDay - currentDay + 7) % 7;
-
-			const sampleDate = new Date(now);
-			sampleDate.setUTCDate(now.getUTCDate() + daysUntilTarget);
-
-			const [hours, minutes] = time.split(':').map(Number);
-			sampleDate.setUTCHours(hours, minutes, 0, 0);
-
-			return sampleDate.toISOString();
-		}
-
-		// Sort by weekday and time
-		timeSlots.sort((a, b) => {
-			const dayOrder = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
-			const dayCompare = dayOrder.indexOf(a.weekday) - dayOrder.indexOf(b.weekday);
-			if (dayCompare !== 0) return dayCompare;
-			return a.startTime.localeCompare(b.startTime);
-		});
-
-		return {
-			orgId,
-			session,
-			participants,
-			timeSlots,
-			defaultDateRange: {
-				start: session.startDate.toISOString(),
-				end: session.endDate.toISOString()
-			}
-		} as const;
+		return await timeSlotService.loadAllSlots(sessionId);
 	}
 );
 
 export const actions: Actions = {
-	assign: withAuthRedirect(
-		async ({ request, params, locals: { resolve, organizationContext } }) => {
-			const orgId = organizationContext?.organization?.id;
-			if (!orgId) return { error: 'No organization in context' };
+	assign: async ({ request, params, locals: { resolve, organizationContext } }) => {
+		const orgId = organizationContext?.organization?.id;
+		if (!orgId) return { error: 'No organization in context' };
 
-			const sessionId = params.id;
-			if (!sessionId) return { error: 'Missing session ID' };
+		const sessionId = params.id;
+		if (!sessionId) return { error: 'Missing session ID' };
 
-			const form = await request.formData();
-			const slotId = String(form.get('slotId') || '').trim();
-			const participantId = String(form.get('participantId') || '').trim();
+		// Parse and validate form data using the imported schema
+		const rest = await parseResponse(
+			timeSlotInsertSchema,
+			request,
 
-			if (!slotId || !participantId) {
-				return { error: 'Missing slot ID or participant ID' };
-			}
+			({ id, ...rest }: { id?: string }) => ({
+				...rest,
+				id: id?.startsWith('new:') ? undefined : id,
+				drawSessionId: sessionId
+			})
+		);
 
-			// TODO: Check admin permissions
-			// TODO: Validate slot is available and belongs to org/session
-			// TODO: Assign slot to participant
+		const timeSlotService = resolve(timeSlotServiceKey);
+		const drawSessionService = resolve(drawSessionServiceKey);
 
-			const timeSlotService = resolve(timeSlotServiceKey);
-			const result = await timeSlotService.assignSlot(orgId, slotId, participantId);
-
-			if (result.error) {
-				return { error: result.error };
-			}
-
-			return { success: true, slot: result.slot };
-		}
-	),
-
-	unassign: withAuthRedirect(
-		async ({ request, params, locals: { resolve, organizationContext } }) => {
-			const orgId = organizationContext?.organization?.id;
-			if (!orgId) return { error: 'No organization in context' };
-
-			const sessionId = params.id;
-			if (!sessionId) return { error: 'Missing session ID' };
-
-			const form = await request.formData();
-			const slotId = String(form.get('slotId') || '').trim();
-
-			if (!slotId) {
-				return { error: 'Missing slot ID' };
-			}
-
-			// TODO: Check admin permissions
-			// TODO: Validate slot belongs to org/session
-
-			const timeSlotService = resolve(timeSlotServiceKey);
-			const result = await timeSlotService.unassignSlot(orgId, slotId);
-
-			if (result.error) {
-				return { error: result.error };
-			}
-
-			return { success: true, slot: result.slot };
-		}
-	),
-
-	pick: withAuthRedirect(
-		async ({ request, params, locals: { resolve, organizationContext, user } }) => {
-			const orgId = organizationContext?.organization?.id;
-			if (!orgId) return { error: 'No organization in context' };
-
-			const sessionId = params.id;
-			if (!sessionId) return { error: 'Missing session ID' };
-
-			const form = await request.formData();
-			const slotId = String(form.get('slotId') || '').trim();
-
-			if (!slotId) {
-				return { error: 'Missing slot ID' };
-			}
-
-			// Use the existing performPick method which handles turn validation
-			const pickService = resolve(pickServiceKey);
+		// If no roundNumber is specified, default to current round
+		if (!rest.roundNumber && rest.heldByUserId) {
 			try {
-				const result = await pickService.performPick({
-					organizationId: orgId,
-					sessionId,
-					userId: user.id,
-					timeSlotId: slotId
-				});
-				return { success: true, result };
-			} catch (e: any) {
-				if (e?.status === 409) {
-					return { error: 'Slot already picked' };
-				}
-				return { error: e?.message || 'Pick failed' };
+				const currentTurn = await drawSessionService.computeCurrentTurn(orgId, sessionId);
+				rest.roundNumber = currentTurn.roundNumber;
+			} catch (e) {
+				// If we can't compute current turn, default to round 1
+				rest.roundNumber = 1;
 			}
 		}
-	)
+
+		// Now assign the slot (whether it was just created or already existed)
+		const slot = await timeSlotService.assignSlot(rest);
+
+		return { success: true, slot };
+	},
+
+	unassign: async ({ request, params, locals: { resolve, organizationContext } }) => {
+		const orgId = organizationContext?.organization?.id;
+		if (!orgId) return { error: 'No organization in context' };
+
+		const sessionId = params.id;
+		if (!sessionId) return { error: 'Missing session ID' };
+
+		// Parse and validate form data using the imported schema
+		const parseResult = await parseResponse(unassignActionSchema, request);
+		if ('error' in parseResult) {
+			return { error: parseResult.error };
+		}
+
+		const { pattern, fieldId } = parseResult;
+
+		const timeSlotService = resolve(timeSlotServiceKey);
+
+		// Use pattern-based unassignment (pattern and fieldId are required by schema)
+		const slot = await timeSlotService.unassignSlotByPattern(sessionId, pattern, fieldId);
+
+		return { success: true, slot };
+	},
+
+	pick: async ({ request, params, locals: { resolve, organizationContext, user } }) => {
+		const orgId = organizationContext?.organization?.id;
+		if (!orgId) return { error: 'No organization in context' };
+		if (!user) return { error: 'User not authenticated' };
+
+		const sessionId = params.id;
+		if (!sessionId) return { error: 'Missing session ID' };
+
+		// Parse and validate form data using the imported schema
+		const parseResult = await parseResponse(pickActionSchema, request);
+		if ('error' in parseResult) {
+			return { error: parseResult.error };
+		}
+
+		const { slotId } = parseResult;
+
+		// Use the existing performPick method which handles turn validation
+		const pickService = resolve(pickServiceKey);
+		try {
+			const result = await pickService.performPick({
+				organizationId: orgId,
+				sessionId,
+				userId: user.id,
+				timeSlotId: slotId
+			});
+			return { success: true, result };
+		} catch (e: any) {
+			if (e?.status === 409) {
+				return { error: 'Slot already picked' };
+			}
+			return { error: e?.message || 'Pick failed' };
+		}
+	},
+
+	block: async ({ request, params, locals: { resolve, organizationContext } }) => {
+		const orgId = organizationContext?.organization?.id;
+		if (!orgId) return { error: 'No organization in context' };
+
+		const sessionId = params.id;
+		if (!sessionId) return { error: 'Missing session ID' };
+
+		// Parse and validate form data using the imported schema
+		const parseResult = await parseResponse(blockActionSchema, request);
+		if ('error' in parseResult) {
+			return { error: parseResult.error };
+		}
+
+		const { pattern, fieldId, reason, isSynthetic, startUtc, endUtc } = parseResult;
+
+		const timeSlotService = resolve(timeSlotServiceKey);
+
+		// If this is a synthetic slot, we need to create it first
+		if (isSynthetic && startUtc && endUtc) {
+			const createResult = await timeSlotService.bulkCreateIfValid(sessionId, [
+				{ fieldId, startUtc, endUtc }
+			]);
+
+			if (createResult.error && !createResult.error.includes('overlap')) {
+				console.log('Slot creation note:', createResult.error);
+			}
+		}
+
+		// Block the slot
+		try {
+			const result = await timeSlotService.blockSlotByPattern(sessionId, pattern, fieldId, reason);
+			return { success: true, result };
+		} catch (e: any) {
+			return { error: e.message || 'Failed to block slot' };
+		}
+	},
+
+	unblock: async ({ request, params, locals: { resolve, organizationContext } }) => {
+		const orgId = organizationContext?.organization?.id;
+		if (!orgId) return { error: 'No organization in context' };
+
+		const sessionId = params.id;
+		if (!sessionId) return { error: 'Missing session ID' };
+
+		// Parse and validate form data using the imported schema
+		const parseResult = await parseResponse(unblockActionSchema, request);
+		if ('error' in parseResult) {
+			return { error: parseResult.error };
+		}
+
+		const { pattern, fieldId } = parseResult;
+
+		const timeSlotService = resolve(timeSlotServiceKey);
+
+		// Unblock the slot
+		try {
+			const result = await timeSlotService.unblockSlotByPattern(sessionId, pattern, fieldId);
+			return { success: true, result };
+		} catch (e: any) {
+			return { error: e.message || 'Failed to unblock slot' };
+		}
+	}
 };

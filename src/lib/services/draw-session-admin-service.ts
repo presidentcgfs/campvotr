@@ -8,24 +8,22 @@ import {
 	drawScheduleFields,
 	drawScheduleRules,
 	fields,
-	organizationMemberships
+	organizationMemberships,
+	participants
 } from '$lib/db/schema';
-import { and, eq, inArray } from 'drizzle-orm';
-import {
-	type RecurrenceMulti,
-	toRRules,
-	validateRecurrenceMulti,
-	generateTimeSlotsMulti
-} from '$lib/components/recurrence/recurrence-utils';
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import { authUsers } from 'drizzle-orm/supabase';
+import { type RecurrenceMulti } from '$lib/components/recurrence/recurrence-utils';
 
 export type TurnStrategy = 'random' | 'round_robin' | 'snake';
+import type { ParticipantCreate } from '$lib/db/types';
 
 export interface CreateDrawSessionInput {
 	name: string;
 	turnStrategy: TurnStrategy;
 	startDate: string; // YYYY-MM-DD
 	endDate: string; // YYYY-MM-DD
-	participants: string[]; // emails or email:role format
+	participants: Omit<ParticipantCreate, 'drawSessionId'>[]; // emails or email:role format
 	schedules: {
 		fieldIds: string[];
 		recurrence: RecurrenceMulti;
@@ -84,13 +82,14 @@ export class DrawSessionAdminService extends BaseService {
 				.returning();
 
 			// 2. Insert participants
-			const participantData = this.parseParticipants(input.participants);
+			const participantData = input.participants;
 			if (participantData.length > 0) {
-				await tx.insert(drawSessionParticipants).values(
-					participantData.map((p) => ({
+				await tx.insert(participants).values(
+					participantData.map((p, position) => ({
 						drawSessionId: session.id,
 						email: p.email,
-						role: p.role
+						role: p.role,
+						position
 					}))
 				);
 			}
@@ -151,30 +150,6 @@ export class DrawSessionAdminService extends BaseService {
 		});
 	}
 
-	private parseParticipants(participants: string[]): { email: string; role: string }[] {
-		return participants.map((p) => {
-			const trimmed = p.trim().toLowerCase();
-			if (trimmed.includes(':')) {
-				const [email, role] = trimmed.split(':', 2);
-				return { email: email.trim(), role: role.trim() || 'member' };
-			}
-			return { email: trimmed, role: 'member' };
-		});
-	}
-
-	private async validateParticipantsAreOrgMembers(emails: string[], orgId: string): Promise<void> {
-		if (emails.length === 0) return;
-
-		const members = await this.db
-			.select({ email: organizationMemberships.userId }) // This would need to be joined with auth.users
-			.from(organizationMemberships)
-			.where(eq(organizationMemberships.organizationId, orgId));
-
-		// For now, we'll skip this validation since we don't have direct access to auth.users
-		// In a real implementation, you'd join with the users table or use a separate service
-		// TODO: Implement proper email validation against org membership
-	}
-
 	private async validateFieldsBelongToOrg(fieldIds: string[], orgId: string): Promise<void> {
 		const orgFields = await this.db
 			.select({ id: fields.id })
@@ -184,5 +159,118 @@ export class DrawSessionAdminService extends BaseService {
 		if (orgFields.length !== fieldIds.length) {
 			throw new Error('Some fields do not belong to the organization');
 		}
+	}
+
+	/**
+	 * Get all participants for a draw session (both legacy and new systems)
+	 */
+	async getSessionParticipants(sessionId: string) {
+		// Get legacy participants (userId-based)
+		return this.db.query.participants.findMany({
+			where: eq(participants.drawSessionId, sessionId)
+		});
+	}
+
+	async setParticipants(
+		drawSessionId: string,
+		parts: ({ userId: string; role: string } | { email: string; role: string })[]
+	) {
+		await this.db.transaction(async (tx) => {
+			await tx.delete(participants).where(eq(participants.drawSessionId, drawSessionId));
+			await tx.insert(participants).values(
+				parts.map((p, position) => ({
+					drawSessionId,
+					position,
+					...p
+				}))
+			);
+		});
+	}
+
+	/**
+	 * Add a participant to a draw session by email
+	 */
+	async addParticipant(
+		sessionId: string,
+		orgId: string,
+		email: string,
+		role: string = 'member',
+		position = 0
+	) {
+		// Validate session belongs to org
+		const [session] = await this.db
+			.select()
+			.from(drawSessions)
+			.where(and(eq(drawSessions.id, sessionId), eq(drawSessions.organizationId, orgId)))
+			.limit(1);
+
+		if (!session) {
+			throw new Error('Session not found or access denied');
+		}
+
+		// Check if participant already exists
+		const existingLegacy = await this.db
+			.select()
+			.from(participants)
+			.where(and(eq(participants.drawSessionId, sessionId), eq(participants.email, email)))
+			.limit(1);
+
+		if (existingLegacy.length > 0) {
+			throw new Error('Participant already exists');
+		}
+
+		// Try to find if this email is an organization member
+		const [orgMember] = await this.db
+			.select()
+			.from(organizationMemberships)
+			.innerJoin(authUsers, eq(organizationMemberships.userId, authUsers.id))
+			.where(and(eq(organizationMemberships.organizationId, orgId), eq(authUsers.email, email)))
+			.limit(1);
+
+		if (orgMember) {
+			// Add as legacy participant (userId-based)
+			const [participant] = await this.db
+				.insert(participants)
+				.values({
+					drawSessionId: sessionId,
+					userId: orgMember.organization_memberships.userId,
+					position, // Will be reordered later if needed
+					role
+				})
+				.returning();
+			return { participant, type: 'member' as const };
+		} else {
+			// Add as email participant
+			const [participant] = await this.db
+				.insert(participants)
+				.values({
+					drawSessionId: sessionId,
+					email,
+					role,
+					position
+				})
+				.returning();
+			return { participant, type: 'email' as const };
+		}
+	}
+
+	/**
+	 * Remove a participant from a draw session
+	 */
+	async removeParticipant(sessionId: string, orgId: string, participantId: string) {
+		// Validate session belongs to org
+		const [session] = await this.db
+			.select()
+			.from(drawSessions)
+			.where(and(eq(drawSessions.id, sessionId), eq(drawSessions.organizationId, orgId)))
+			.limit(1);
+
+		if (!session) {
+			throw new Error('Session not found or access denied');
+		}
+
+		await this.db
+			.delete(participants)
+			.where(and(eq(participants.id, participantId), eq(participants.drawSessionId, sessionId)));
 	}
 }

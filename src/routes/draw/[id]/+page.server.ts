@@ -35,7 +35,7 @@ export const load = withAuthRedirect<PageServerLoad>(
 		const now = new Date();
 		const end = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 		const available = await slotSvc.fetchAvailable(
-			{ organizationId: orgId, startUtc: now, endUtc: end, status: ['available'] as any },
+			{ drawSessionId: sessionId, startUtc: now, endUtc: end, status: ['available'] as any },
 			{ includeFieldName: true }
 		);
 

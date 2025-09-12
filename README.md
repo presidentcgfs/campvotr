@@ -93,6 +93,10 @@ The application uses three main tables:
 - `POST /api/auth/signin` - User login
 - `POST /api/auth/signout` - User logout
 
+### Users
+
+- `GET /api/users/lookup-by-email?email={email}` - Find user ID by email within the current user's organization
+
 ### ballots
 
 - `GET /api/ballots` - List all ballots with vote counts
@@ -158,16 +162,158 @@ select
 
 ## Development
 
+### Prerequisites for Development
+
+- Node.js 18+ (recommended: use nvm or fnm for version management)
+- pnpm (preferred package manager)
+- PostgreSQL database (local or remote)
+- Supabase account for authentication
+- Git for version control
+
+### Development Setup
+
+1. **Clone and install dependencies:**
+
+   ```bash
+   git clone <repository-url>
+   cd campvotr
+   pnpm install
+   ```
+
+2. **Environment setup:**
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Configure your `.env` file with development values.
+
+3. **Database setup:**
+
+   ```bash
+   # Generate and run migrations
+   pnpm run db:generate
+   pnpm run db:migrate
+
+   # Optional: View database in Drizzle Studio
+   pnpm run db:studio
+   ```
+
+4. **Start development server:**
+   ```bash
+   pnpm run dev
+   ```
+
 ### Available Scripts
 
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm run db:generate` - Generate database migrations
-- `npm run db:migrate` - Run database migrations
-- `npm run db:push` - Push schema changes to database
-- `npm run db:studio` - Open Drizzle Studio
+- `pnpm run dev` - Start development server with hot reload
+- `pnpm run build` - Build for production
+- `pnpm run preview` - Preview production build locally
+- `pnpm run check` - Run Svelte check for TypeScript errors
+- `pnpm run check:watch` - Run Svelte check in watch mode
+- `pnpm run lint` - Run ESLint
+- `pnpm run format` - Format code with Prettier
+- `pnpm run db:generate` - Generate database migrations from schema changes
+- `pnpm run db:migrate` - Run pending database migrations
+- `pnpm run db:push` - Push schema changes directly to database (dev only)
+- `pnpm run db:studio` - Open Drizzle Studio for database management
+- `pnpm run db:seed` - Seed database with sample data (if available)
+
+### Project Structure
+
+```
+src/
+├── lib/
+│   ├── components/     # Reusable Svelte components
+│   ├── server/        # Server-side utilities and database
+│   ├── stores/        # Svelte stores for state management
+│   └── utils/         # Shared utility functions
+├── routes/
+│   ├── api/          # API endpoints
+│   └── (app)/        # Application routes
+├── app.html          # HTML template
+└── hooks.server.ts   # SvelteKit hooks
+```
+
+### Development Guidelines
+
+#### Code Style
+
+- Use TypeScript for all new code
+- Follow the existing code formatting (Prettier configuration)
+- Use meaningful variable and function names
+- Add JSDoc comments for complex functions
+
+#### Database Changes
+
+1. Modify schema in `src/lib/server/db/schema.ts`
+2. Generate migration: `pnpm run db:generate`
+3. Review the generated migration file
+4. Apply migration: `pnpm run db:migrate`
+
+#### Component Development
+
+- Use Svelte 5 runes syntax (`$props`, `$state`, `$derived`, `$effect`)
+- Prefer Flowbite-Svelte components over custom UI elements
+- Use Tailwind CSS for styling
+- Keep components focused and reusable
+- Use TypeScript for prop definitions
+
+#### API Development
+
+- Follow RESTful conventions
+- Use proper HTTP status codes
+- Implement proper error handling
+- Add input validation using Zod schemas
+- Use dependency injection pattern with services
+
+### Testing
+
+Currently, the project uses manual testing. To contribute to testing:
+
+1. **Manual Testing Checklist:**
+   - User registration and authentication
+   - Ballot creation and voting
+   - Real-time updates
+   - Notification system
+   - Mobile responsiveness
+
+2. **Future Testing Plans:**
+   - Unit tests with Vitest
+   - Integration tests for API endpoints
+   - E2E tests with Playwright
+
+### Debugging
+
+#### Development Tools
+
+- Use browser DevTools for frontend debugging
+- Check SvelteKit logs in terminal for server-side issues
+- Use Drizzle Studio to inspect database state
+- Monitor network requests for API debugging
+
+#### Common Issues
+
+- **Database connection errors**: Check `DATABASE_URL` in `.env`
+- **Authentication issues**: Verify Supabase configuration
+- **Build errors**: Run `pnpm run check` for TypeScript issues
+- **Migration errors**: Ensure database is accessible and migrations are in correct order
+
+### Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature-name`
+3. Make your changes following the development guidelines
+4. Test your changes thoroughly
+5. Commit with descriptive messages
+6. Push to your fork and create a pull request
+
+### Performance Considerations
+
+- Use `$derived` for computed values instead of reactive statements
+- Implement proper loading states for async operations
+- Optimize database queries with appropriate indexes
+- Use Server-Sent Events efficiently for real-time updates
+- Consider pagination for large data sets
 
 ## License
-
-MIT License - see LICENSE file for details.

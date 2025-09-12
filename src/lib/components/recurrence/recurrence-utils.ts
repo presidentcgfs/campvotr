@@ -4,14 +4,28 @@
 
 import { Temporal } from '@js-temporal/polyfill';
 import { RRuleTemporal, type RRuleOptions } from 'rrule-temporal';
-import { toTemporalInstant } from '@js-temporal/polyfill';
+
+// Provide a safe shim for Date.prototype.toTemporalInstant for tests/environments
+// that don't have the method available. This keeps us fully Temporal-based without
+// relying on global patching by the polyfill.
+if (!(Date.prototype as any).toTemporalInstant) {
+	Object.defineProperty(Date.prototype, 'toTemporalInstant', {
+		value: function toTemporalInstantShim() {
+			return Temporal.Instant.fromEpochMilliseconds(this.getTime());
+		},
+		configurable: true,
+		writable: false,
+		enumerable: false
+	});
+}
 
 export function toTemporal(date: Date | Temporal.Instant): Temporal.Instant {
-	return date instanceof Temporal.Instant ? date : toTemporalInstant.call(toDate(date)!);
+	if (date instanceof Temporal.Instant) return date;
+	return Temporal.Instant.fromEpochMilliseconds((date as Date).getTime());
 }
 export function toZonedDateTimeUTC(tdate: Date | Temporal.Instant) {
-	const temp = toTemporal(tdate);
-	return temp.toZonedDateTimeISO('UTC');
+	const inst = toTemporal(tdate);
+	return inst.toZonedDateTimeISO('UTC');
 }
 /**
  * Weekday type for recurrence rules
@@ -293,11 +307,7 @@ export function getRecurrenceDescription(recurrence: Recurrence): string {
 /**
  * Result type for toRRules function
  */
-export type RRuleResult = {
-	rruleString: string; // "DTSTART;TZID=...:YYYYMMDDTHHmmss\nRRULE:..."
-	durationMinutes: number; // derived from window end-start; for consumer to build slots
-	options?: RRuleTemporalOptions; // optional: the normalized ManualOpts used to build the rule
-};
+export type RRuleResult = InstanceType<typeof RRuleTemporal>;
 
 /**
  * Normalize RecurrenceMulti by converting timeRange to timeWindows for backward compatibility
@@ -361,18 +371,6 @@ export function toRRules(recurrence: RecurrenceMulti): RRuleResult[] {
 		const startTotalMinutes = startHour * 60 + startMinute;
 		const endTotalMinutes = endHour * 60 + endMinute;
 		const durationMinutes = endTotalMinutes - startTotalMinutes;
-		console.dir(
-			{
-				startHour,
-				startMinute,
-				endHour,
-				endMinute,
-				startTotalMinutes,
-				endTotalMinutes,
-				durationMinutes
-			},
-			{ depth: 20 }
-		);
 
 		if (durationMinutes <= 0) {
 			throw new Error(
@@ -429,13 +427,7 @@ export function toRRules(recurrence: RecurrenceMulti): RRuleResult[] {
 
 		// Generate rrule string
 		const rule = new RRuleTemporal(options);
-		const rruleString = rule.toString();
-
-		results.push({
-			rruleString,
-			durationMinutes,
-			options
-		});
+		results.push(rule);
 	}
 
 	return results;
@@ -571,39 +563,6 @@ export type TimeSlot = {
 };
 
 /**
- * Generate time slots from RecurrenceMulti
- */
-export function generateTimeSlotsMulti(recurrence: RecurrenceMulti): TimeSlot[] {
-	const rules = toRRules(recurrence);
-	const allSlots: TimeSlot[] = [];
-
-	rules.forEach((ruleResult, windowIndex) => {
-		try {
-			const rule = new RRuleTemporal({ rruleString: ruleResult.rruleString });
-			const occurrences = rule.all();
-
-			occurrences.forEach((zdt) => {
-				const startTime = new Date(zdt.toInstant().epochMilliseconds);
-				const endTime = new Date(startTime.getTime() + ruleResult.durationMinutes * 60 * 1000);
-
-				allSlots.push({
-					start: startTime,
-					end: endTime,
-					windowIndex
-				});
-			});
-		} catch (error) {
-			console.error(`Error generating slots for window ${windowIndex}:`, error);
-		}
-	});
-
-	// Sort by start time
-	allSlots.sort((a, b) => a.start.getTime() - b.start.getTime());
-
-	return allSlots;
-}
-
-/**
  * Convert multiple rrule results back to RecurrenceMulti
  */
 export function fromRRules(rules: RRuleResult[]): RecurrenceMulti {
@@ -612,13 +571,13 @@ export function fromRRules(rules: RRuleResult[]): RecurrenceMulti {
 	}
 
 	// Use the first rule as the base for common properties
-	const firstRule = new RRuleTemporal({ rruleString: rules[0].rruleString });
+	const firstRule = rules[0];
 	const firstOptions = firstRule.options();
 
 	// Extract time windows from all rules
 	const timeWindows: TimeWindow[] = rules.map((ruleResult, index) => {
 		try {
-			const rule = new RRuleTemporal({ rruleString: ruleResult.rruleString });
+			const rule = new RRuleTemporal({ rruleString: ruleResult.toString() });
 			const options = rule.options();
 
 			const startHour = options.byHour?.[0] ?? 0;
@@ -626,10 +585,10 @@ export function fromRRules(rules: RRuleResult[]): RecurrenceMulti {
 
 			const startTime = `${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`;
 
-			// Calculate end time from duration
+			// Heuristic: default window duration to 60 minutes when reconstructing
 			const totalStartMinutes = startHour * 60 + startMinute;
-			const totalEndMinutes = totalStartMinutes + ruleResult.durationMinutes;
-			const endHour = Math.floor(totalEndMinutes / 60);
+			const totalEndMinutes = totalStartMinutes + 60;
+			const endHour = Math.floor(totalEndMinutes / 60) % 24;
 			const endMinute = totalEndMinutes % 60;
 			const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
 
@@ -657,4 +616,61 @@ export function fromRRules(rules: RRuleResult[]): RecurrenceMulti {
 	};
 
 	return recurrence;
+}
+
+export function toRuleStr(recurrence: RecurrenceMulti, timeWindow: TimeWindow): string {
+	const rules = toRRules({
+		...recurrence,
+		timeWindows: [timeWindow]
+	});
+	return rules[0]?.toString() || '';
+}
+
+/**
+ * Generate actual time slots with start/end times from RecurrenceMulti
+ */
+export function generateTimeSlotsMulti(recurrence: RecurrenceMulti): TimeSlot[] {
+	// Normalize timeRange to timeWindows for backward compatibility
+	const normalizedRecurrence = normalizeRecurrenceMulti(recurrence);
+
+	if (!normalizedRecurrence.timeWindows.length) {
+		throw new Error('At least one time window is required');
+	}
+
+	const results: TimeSlot[] = [];
+
+	// Generate RRules for all time windows
+	const rules = toRRules(normalizedRecurrence);
+
+	// For each rule (one per time window), generate the actual occurrences
+	rules.forEach((rule, windowIndex) => {
+		const timeWindow = normalizedRecurrence.timeWindows[windowIndex];
+
+		// Parse time window to calculate duration
+		const [startHour, startMinute] = parseHHmm(timeWindow.start);
+		const [endHour, endMinute] = parseHHmm(timeWindow.end);
+		const durationMinutes = endHour * 60 + endMinute - (startHour * 60 + startMinute);
+
+		// Generate all occurrences for this rule
+		const occurrences = rule.all();
+
+		// Convert each occurrence to a TimeSlot
+		occurrences.forEach((occurrence) => {
+			const startDate = toDate(occurrence);
+			if (startDate) {
+				const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+
+				results.push({
+					start: startDate,
+					end: endDate,
+					windowIndex
+				});
+			}
+		});
+	});
+
+	// Sort by start time
+	results.sort((a, b) => a.start.getTime() - b.start.getTime());
+
+	return results;
 }

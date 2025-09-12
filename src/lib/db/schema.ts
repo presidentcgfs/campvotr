@@ -9,9 +9,13 @@ import {
 	integer,
 	uniqueIndex,
 	json,
-	date
+	date,
+	check,
+	time,
+	jsonb
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
+import { authUsers } from 'drizzle-orm/supabase';
 
 // Enums
 export const voteChoiceEnum = pgEnum('vote_choice', ['yea', 'nay', 'abstain']);
@@ -96,6 +100,16 @@ export const organizationInvitesRelations = relations(organizationInvites, ({ on
 		references: [organizations.id]
 	})
 }));
+
+// User Profiles
+export const profiles = pgTable('profiles', {
+	id: uuid('id').primaryKey(), // Uses authUser.id as primary key
+	name: varchar('name', { length: 255 }),
+	email: varchar('email', { length: 255 }).notNull(),
+	avatarUrl: text('avatar_url'),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at').defaultNow().notNull()
+}).enableRLS();
 
 // Tables
 export const voters = pgTable('voters', {
@@ -230,6 +244,10 @@ export const notifications = pgTable('notifications', {
 }).enableRLS();
 
 // Relations
+export const profilesRelations = relations(profiles, ({ many }) => ({
+	organizationMemberships: many(organizationMemberships)
+}));
+
 export const votersRelations = relations(voters, ({ many }) => ({
 	voterListMembers: many(voterListMembers),
 	ballotVoters: many(ballotVoters),
@@ -364,55 +382,58 @@ export const timeSlots = pgTable(
 	'time_slots',
 	{
 		id: uuid('id').primaryKey().defaultRandom(),
-		organizationId: uuid('organization_id')
-			.references(() => organizations.id, { onDelete: 'cascade' })
+		drawSessionId: uuid('draw_session_id')
+			.references(() => drawSessions.id, { onDelete: 'cascade' })
 			.notNull(),
 		fieldId: uuid('field_id')
 			.references(() => fields.id, { onDelete: 'cascade' })
 			.notNull(),
 		startUtc: timestamp('start_utc', { mode: 'date' }).notNull(),
 		endUtc: timestamp('end_utc', { mode: 'date' }).notNull(),
+		startTime: time('start_time').notNull(),
+		endTime: time('end_time').notNull(),
 		status: timeSlotStatusEnum('status').default('available').notNull(),
-		heldByUserId: uuid('held_by_user_id'),
+		heldByUserId: uuid('held_by_user_id').references(() => participants.id, {
+			onDelete: 'set null'
+		}),
+		roundNumber: integer('round_number'), // Track which round this slot was picked/assigned in
+		weekday: integer('weekday').notNull(),
 		holdExpiresAt: timestamp('hold_expires_at', { mode: 'date' }),
 		blockedReason: text('blocked_reason'),
 		version: integer('version').default(1).notNull(),
+		pattern: text('pattern').notNull(),
 		createdAt: timestamp('created_at').defaultNow().notNull(),
-		updatedAt: timestamp('updated_at').defaultNow().notNull()
+		updatedAt: timestamp('updated_at').defaultNow().notNull(),
+		slot: varchar('slot', { length: 255 }).notNull().unique()
 	},
 	(table) => ({
 		uniqueSlotWindow: uniqueIndex('unique_field_timeslot_window').on(
+			table.drawSessionId,
 			table.fieldId,
-			table.startUtc,
-			table.endUtc
-		),
-		orgFieldStartIdx: uniqueIndex('org_field_start_idx').on(
-			table.organizationId,
-			table.fieldId,
-			table.startUtc
+			table.pattern,
+			table.startTime,
+			table.endTime,
+			table.slot,
+			table.weekday
 		)
 	})
 ).enableRLS();
-// =====================
-// Field Draw — Core Tables (part 2)
-// =====================
-export const recurrenceRules = pgTable('recurrence_rules', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	organizationId: uuid('organization_id')
-		.references(() => organizations.id, { onDelete: 'cascade' })
-		.notNull(),
-	fieldId: uuid('field_id')
-		.references(() => fields.id, { onDelete: 'cascade' })
-		.notNull(),
-	frequency: recurrenceFrequencyEnum('frequency').notNull(),
-	interval: integer('interval').default(1).notNull(),
-	byDay: varchar('by_day', { length: 64 }), // e.g. "MO,TU,WE"
-	windowStartUtc: timestamp('window_start_utc', { mode: 'date' }).notNull(),
-	windowEndUtc: timestamp('window_end_utc', { mode: 'date' }).notNull(),
-	blackoutDates: text('blackout_dates'), // JSON-encoded array of ISO dates or ranges
-	createdAt: timestamp('created_at').defaultNow().notNull(),
-	updatedAt: timestamp('updated_at').defaultNow().notNull()
-}).enableRLS();
+
+export const timeSlotRelations = relations(timeSlots, ({ one }) => ({
+	drawSession: one(drawSessions, {
+		fields: [timeSlots.drawSessionId],
+		references: [drawSessions.id]
+	}),
+	field: one(fields, {
+		fields: [timeSlots.fieldId],
+		references: [fields.id]
+	}),
+
+	heldByUser: one(authUsers, {
+		fields: [timeSlots.heldByUserId],
+		references: [authUsers.id]
+	})
+}));
 
 export const drawSessions = pgTable('draw_sessions', {
 	id: uuid('id').primaryKey().defaultRandom(),
@@ -434,23 +455,28 @@ export const drawSessions = pgTable('draw_sessions', {
 // =====================
 // Field Draw — Core Tables (part 3)
 // =====================
-export const participants = pgTable(
-	'participants',
-	{
-		id: uuid('id').primaryKey().defaultRandom(),
-		drawSessionId: uuid('draw_session_id')
-			.references(() => drawSessions.id, { onDelete: 'cascade' })
-			.notNull(),
-		userId: uuid('user_id').notNull(),
-		position: integer('position').notNull(),
-		role: varchar('role', { length: 32 }).default('participant').notNull(),
-		createdAt: timestamp('created_at').defaultNow().notNull()
-	},
-	(table) => ({
-		uniqueParticipant: uniqueIndex('unique_session_user').on(table.drawSessionId, table.userId)
-	})
-).enableRLS();
+export const participants = pgTable('participants', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	drawSessionId: uuid('draw_session_id')
+		.references(() => drawSessions.id, { onDelete: 'cascade' })
+		.notNull(),
+	userId: uuid('user_id').references(() => authUsers.id, { onDelete: 'set null' }),
+	email: varchar('email', { length: 255 }),
+	position: integer('position').notNull(),
+	role: varchar('role', { length: 32 }).default('participant').notNull(),
+	createdAt: timestamp('created_at').defaultNow().notNull()
+}).enableRLS();
 
+export const participantsRelations = relations(participants, ({ one }) => ({
+	drawSession: one(drawSessions, {
+		fields: [participants.drawSessionId],
+		references: [drawSessions.id]
+	}),
+	user: one(authUsers, {
+		fields: [participants.userId],
+		references: [authUsers.id]
+	})
+}));
 export const picks = pgTable(
 	'picks',
 	{
@@ -473,17 +499,6 @@ export const picks = pgTable(
 		turnIdx: uniqueIndex('unique_turn').on(table.drawSessionId, table.roundNumber, table.turnNumber)
 	})
 ).enableRLS();
-
-// New tables for RecurrenceMulti-based draw sessions
-export const drawSessionParticipants = pgTable('draw_session_participants', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	drawSessionId: uuid('draw_session_id')
-		.references(() => drawSessions.id, { onDelete: 'cascade' })
-		.notNull(),
-	email: varchar('email', { length: 255 }).notNull(),
-	role: varchar('role', { length: 32 }).default('member').notNull(),
-	createdAt: timestamp('created_at').defaultNow().notNull()
-}).enableRLS();
 
 export const drawSchedules = pgTable('draw_schedules', {
 	id: uuid('id').primaryKey().defaultRandom(),
@@ -545,9 +560,24 @@ export const drawSessionsRelations = relations(drawSessions, ({ one, many }) => 
 		fields: [drawSessions.organizationId],
 		references: [organizations.id]
 	}),
+	timeSlots: many(timeSlots),
 	participants: many(participants),
 	picks: many(picks),
 	schedules: many(drawSchedules)
+}));
+export const timeSlotsRelations = relations(timeSlots, ({ one }) => ({
+	drawSession: one(drawSessions, {
+		fields: [timeSlots.drawSessionId],
+		references: [drawSessions.id]
+	}),
+	field: one(fields, {
+		fields: [timeSlots.fieldId],
+		references: [fields.id]
+	}),
+	heldByUser: one(participants, {
+		fields: [timeSlots.heldByUserId],
+		references: [participants.id]
+	})
 }));
 export const sessionSchedulesRelations = relations(drawSchedules, ({ one, many }) => ({
 	drawSession: one(drawSessions, {

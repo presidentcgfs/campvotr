@@ -9,19 +9,31 @@ export const loading = writable(true);
 
 // Initialize auth state
 if (browser) {
-	AuthService.getSession().then((currentSession) => {
-		user.set(currentSession?.user);
-		session.set(currentSession ?? undefined);
+	// Use getCurrentUser() for secure authentication verification
+	AuthService.getCurrentUser().then((currentUser) => {
+		user.set(currentUser ?? undefined);
+		// Only get session if we have a valid user
+		if (currentUser) {
+			AuthService.getSession().then((currentSession) => {
+				session.set(currentSession ?? undefined);
+			});
+		} else {
+			session.set(undefined);
+		}
 		loading.set(false);
 	});
 
-	// // Listen for auth changes
+	// Listen for auth changes
 	AuthService.onAuthStateChange((currentUser) => {
 		user.set(currentUser ?? undefined);
-		// Get updated session when user changes
-		AuthService.getSession().then((currentSession) => {
-			session.set(currentSession ?? undefined);
-		});
+		// Only get session if we have a valid user
+		if (currentUser) {
+			AuthService.getSession().then((currentSession) => {
+				session.set(currentSession ?? undefined);
+			});
+		} else {
+			session.set(undefined);
+		}
 		loading.set(false);
 	});
 }

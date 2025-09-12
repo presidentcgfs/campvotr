@@ -8,18 +8,21 @@
 
 	onMount(async () => {
 		try {
-			// Handle the OAuth callback
-			const { data, error: authError } = await supabase.auth.getSession();
+			// Handle the OAuth callback - validate the user with the auth server
+			const {
+				data: { user },
+				error: authError
+			} = await supabase.auth.getUser();
 
 			if (authError) {
 				throw authError;
 			}
 
-			if (data.session) {
-				// Redirect to dashboard
+			if (user) {
+				// Valid user session, redirect to dashboard
 				goto('/dashboard');
 			} else {
-				// No session found, redirect to auth page
+				// No valid user session, redirect to auth page
 				goto('/auth');
 			}
 		} catch (err: any) {

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { z as z4 } from 'zod/v4';
 import type { User } from '@supabase/supabase-js';
 import type * as Kit from '@sveltejs/kit';
-
+import { fail } from '@sveltejs/kit';
 type UserDefFn<T extends Kit.ServerLoad<any, any, any, any>> = (
 	event: Parameters<T>[0] & { locals: { user: User } }
 ) => ReturnType<T>;
@@ -31,20 +31,21 @@ export function withAuthRedirect<T extends Kit.ServerLoad<any, any, any, any>>(
 			return await handler(event as any);
 		} catch (error) {
 			if (error instanceof z4.ZodError) {
-				return {
-					status: 200,
+				console.error('Zod error:', error);
+				return fail(400, {
 					error: 'Validation error',
-					details: z.flattenError(error)
-				};
+					details: z4.treeifyError(error)
+				});
 			} else if (error instanceof z.ZodError) {
-				return {
-					status: 200,
+				console.error('Zod error:', error);
+
+				return fail(400, {
 					error: 'Validation error',
-					details: z.flattenError(error)
-				};
+					details: z.treeifyError(error)
+				});
 			}
 			console.error('Auth middleware error:', error);
-			return json({ error: 'Internal server error' }, { status: 500 });
+			return fail(400, { error: 'Internal server error' });
 		}
 	};
 }

@@ -1,9 +1,10 @@
 import type { Handle } from '@sveltejs/kit';
-import { createSupabaseServer } from './supabase/server';
+import { createSupabaseServer, safeGetSession } from './supabase/server';
 import { context } from '@pbinj/pbj';
 import '@pbinj/pbj/scope';
 import { register } from '$lib/services/pbj';
 import { organizationServiceKey } from '$lib/services/org';
+import { profileServiceKey } from '$lib/services/profile-service';
 import './polyfill';
 
 const ctx = register(context);
@@ -13,13 +14,24 @@ export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.supabase = supabase;
 	event.locals.resolve = (...args: any[]) => ctx.resolve(...(args as any[]));
 
-	// Retrieve session and user for downstream use
-	const {
-		data: { session }
-	} = await supabase.auth.getSession();
+	// Use the safe method to get validated session and user
+	// This avoids the Supabase warning about using unverified session data
+	const { session, user } = await safeGetSession(supabase);
 
-	event.locals.session = session ?? null;
-	const user = (event.locals.user = session?.user ?? null);
+	event.locals.session = session;
+	event.locals.user = user;
+
+	// Create or update user profile when user signs in
+	if (user) {
+		try {
+			const profileService = ctx.resolve(profileServiceKey);
+			await profileService.upsertProfile(user);
+		} catch (e) {
+			// Profile creation is non-fatal, log but continue
+			console.error('Failed to upsert user profile:', e);
+		}
+	}
+
 	// Resolve organization context for SSR
 	try {
 		(event as any).locals.organizationContext = await ctx

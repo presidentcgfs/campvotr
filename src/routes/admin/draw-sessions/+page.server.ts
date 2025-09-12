@@ -175,15 +175,7 @@ export const actions: Actions = {
 			}
 		}
 
-		// Validate against DB and insert all slots first to ensure no partial session without slots
-		const tsvc = resolve(timeSlotServiceKey);
-		const { created: createdSlots, error: slotsError } = await tsvc.bulkCreateIfValid(
-			orgId,
-			prepared
-		);
-		if (slotsError) return { error: slotsError };
-		if (createdSlots !== prepared.length) return { error: 'Failed to create all time slots' };
-
+		// Create the draw session first
 		const svc = resolve(drawSessionServiceKey);
 		const created = await svc.createSession({
 			organizationId: orgId,
@@ -195,6 +187,17 @@ export const actions: Actions = {
 			createdByUserId: user.id,
 			participants: resolved
 		});
+
+		// Now create the time slots with the draw session ID
+		const tsvc = resolve(timeSlotServiceKey);
+		const { created: createdSlots, error: slotsError } = await tsvc.bulkCreateIfValid(
+			created.id,
+			prepared
+		);
+		if (slotsError) {
+			// TODO: Consider rolling back the draw session creation
+			return { error: `Session created but slots failed: ${slotsError}` };
+		}
 
 		return { success: true, created, createdSlots };
 	}) as any,

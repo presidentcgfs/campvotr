@@ -1,0 +1,1 @@
+ALTER TABLE "time_slots" DROP CONSTRAINT "pattern_rrule_basic_check";

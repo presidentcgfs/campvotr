@@ -1,5 +1,6 @@
 import { type RecurrenceMulti } from '$lib/components/recurrence/recurrence-utils.js';
 export type ScheduleUI = {
+	id: string;
 	recurrence: RecurrenceMulti;
 	fieldIds: string[];
 	fields?: { id: string }[];

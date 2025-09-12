@@ -66,7 +66,11 @@
 	let endDateForPicker = $state(
 		value.endCondition.type === 'onDate' ? toDate(value.endCondition.onDate) : undefined
 	);
-
+	$effect(() => {
+		if (!value.endCondition.type) {
+			value.endCondition.type = 'onDate';
+		}
+	});
 	// Sync startDateForPicker with value.startDate
 	$effect(() => {
 		startDateForPicker = toDate(value.startDate) ?? new Date();
@@ -96,38 +100,38 @@
 	});
 
 	// Reactive validation using $effect
-	$effect(() => {
-		validationErrors = {};
+	// $effect(() => {
+	// 	validationErrors = {};
 
-		// Normalize the recurrence to ensure timeWindows exists
-		const normalized = normalizeRecurrenceMulti(value);
+	// 	// Normalize the recurrence to ensure timeWindows exists
+	// 	const normalized = normalizeRecurrenceMulti(value);
 
-		// Time windows validation
-		const timeWindowsError = validateTimeWindows(normalized.timeWindows);
-		if (timeWindowsError) validationErrors.timeWindows = timeWindowsError;
+	// 	// Time windows validation
+	// 	// const timeWindowsError = validateTimeWindows(normalized.timeWindows);
+	// 	// if (timeWindowsError) validationErrors.timeWindows = timeWindowsError;
 
-		// Weekly weekdays validation
-		const weekdaysError = validateWeekdays(normalized.weekdays || [], normalized.frequency);
-		if (weekdaysError) validationErrors.weekdays = weekdaysError;
+	// 	// Weekly weekdays validation
+	// 	const weekdaysError = validateWeekdays(normalized.weekdays || [], normalized.frequency);
+	// 	if (weekdaysError) validationErrors.weekdays = weekdaysError;
 
-		// Interval validation
-		const intervalError = validateInterval(normalized.interval);
-		if (intervalError) validationErrors.interval = intervalError;
+	// 	// Interval validation
+	// 	const intervalError = validateInterval(normalized.interval);
+	// 	if (intervalError) validationErrors.interval = intervalError;
 
-		// End condition validation
-		if (normalized.endCondition.type === 'onDate') {
-			const endDateMs = normalized.endCondition.onDate;
-			const startDateMs = normalized.startDate;
-			if ((toDate(endDateMs)?.getTime() ?? 0) < (toDate(startDateMs)?.getTime() ?? 0)) {
-				validationErrors.endDate = 'End date must be on or after start date';
-			}
-		}
+	// 	// End condition validation
+	// 	if (normalized.endCondition.type === 'onDate') {
+	// 		const endDateMs = normalized.endCondition.onDate;
+	// 		const startDateMs = normalized.startDate;
+	// 		if ((toDate(endDateMs)?.getTime() ?? 0) < (toDate(startDateMs)?.getTime() ?? 0)) {
+	// 			validationErrors.endDate = 'End date must be on or after start date';
+	// 		}
+	// 	}
 
-		if (normalized.endCondition.type === 'afterCount') {
-			const countError = validateCount(normalized.endCondition.count);
-			if (countError) validationErrors.afterCount = countError;
-		}
-	});
+	// 	if (normalized.endCondition.type === 'afterCount') {
+	// 		const countError = validateCount(normalized.endCondition.count);
+	// 		if (countError) validationErrors.afterCount = countError;
+	// 	}
+	// });
 
 	// Handle frequency change reactively
 	$effect(() => {
@@ -291,7 +295,7 @@
 			bind:value={recurrence.frequency}
 		/>
 	</div>
-
+	<input type="hidden" name="{path}.endCondition.type" value={recurrence.endCondition.type} />
 	<!-- Interval (for recurring frequencies) -->
 	{#if value.frequency !== 'once'}
 		<div>
@@ -332,13 +336,15 @@
 							type="checkbox"
 							class="height-0 width-0 fixed appearance-none opacity-0"
 							bind:group={recurrence.weekdays}
-							name="{path}.weekdays"
 							value={day.code}
 						/>
 						{day.label}
 					</label>
 				{/each}
 			</div>
+			{#each recurrence.weekdays ?? [] as day, index}
+				<input type="hidden" name="{path}.weekdays[{index}]" value={day} />
+			{/each}
 			{#if validationErrors.weekdays}
 				<p class="mt-1 text-sm text-red-600">{validationErrors.weekdays}</p>
 			{/if}
@@ -349,6 +355,7 @@
 	<div>
 		<label for="startDate" class="mb-2 block text-sm font-medium">Start Date</label>
 		<Datepicker id="startDate" bind:value={startDateForPicker} class="w-full" />
+		<input type="hidden" name="{path}.startDate" value={value.startDate} />
 	</div>
 
 	<!-- Time Windows -->
@@ -375,10 +382,20 @@
 								<div>
 									<label for="start-{index}" class="mb-1 block text-xs text-gray-600">Start</label>
 									<Timepicker id="start-{index}" bind:value={timeWindows[index].start} />
+									<input
+										type="hidden"
+										name="{path}.timeWindows[{index}].start"
+										value={timeWindows[index].start}
+									/>
 								</div>
 								<div>
 									<label for="end-{index}" class="mb-1 block text-xs text-gray-600">End</label>
 									<Timepicker id="end-{index}" bind:value={timeWindows[index].end} />
+									<input
+										type="hidden"
+										name="{path}.timeWindows[{index}].end"
+										value={timeWindows[index].end}
+									/>
 								</div>
 							</div>
 							{#if timeWindows.length > 1}
@@ -390,6 +407,7 @@
 										color="red"
 										type="button"
 										class="!p-2"
+										value="remove"
 										onclick={() => removeTimeWindow(index)}
 									>
 										<TrashBinOutline size="xs" />
@@ -416,7 +434,7 @@
 					<label class="flex items-center gap-2 py-3">
 						<Radio
 							id="endCondition"
-							name="endCondition"
+							name="{path}.endCondition.type"
 							value="never"
 							checked={value.endCondition.type === 'never'}
 							onchange={() => onEndConditionChange('never')}
@@ -429,7 +447,7 @@
 						<label class="flex items-center gap-2 py-3">
 							<Radio
 								id="endCondition"
-								name="endCondition"
+								name="{path}.endCondition.type"
 								value="onDate"
 								class="py-2"
 								checked={value.endCondition.type === 'onDate'}
@@ -439,6 +457,7 @@
 						</label>
 						{#if value.endCondition.type === 'onDate'}
 							<Datepicker bind:value={endDateForPicker} class="flex-1" />
+							<input type="hidden" name="{path}.endCondition.onDate" value={endDateForPicker} />
 						{/if}
 					</div>
 					{#if validationErrors.endDate}
@@ -449,7 +468,7 @@
 					<div class="flex items-center gap-2">
 						<label class="flex items-center gap-2 py-3">
 							<Radio
-								name="endCondition"
+								name="{path}.endCondition.type"
 								value="afterCount"
 								checked={value.endCondition.type === 'afterCount'}
 								onchange={() => onEndConditionChange('afterCount')}
@@ -457,7 +476,13 @@
 							After
 						</label>
 						{#if value.endCondition.type === 'afterCount'}
-							<Input type="number" bind:value={value.endCondition.count} min={1} class="w-20" />
+							<Input
+								type="number"
+								name="{path}.endCondition.count"
+								bind:value={value.endCondition.count}
+								min={1}
+								class="w-20"
+							/>
 							<span class="text-sm text-gray-600">occurrences</span>
 						{/if}
 					</div>
@@ -479,6 +504,7 @@
 		{#if value.exceptions && value.exceptions.length > 0}
 			<div class="mt-2 flex flex-wrap gap-2">
 				{#each value.exceptions as exception, index}
+					<input type="hidden" name="{path}.exceptions[{index}]" value={exception} />
 					<Badge color="gray" class="flex items-center gap-1">
 						{formatDate(exception)}
 						<button

@@ -54,6 +54,11 @@ export class AuthService {
 		return user;
 	}
 
+	/**
+	 * @deprecated Use getCurrentUser() instead for security.
+	 * getSession() returns unverified data from cookies which may not be authentic.
+	 * Only use this if you need the session object specifically and will validate it separately.
+	 */
 	static async getSession() {
 		const {
 			data: { session }

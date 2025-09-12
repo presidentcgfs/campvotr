@@ -1,11 +1,28 @@
 import { pbj, pbjKey } from '@pbinj/pbj';
 import { BaseService } from './base-service';
 import { drizzleKey } from '$lib/pbj';
-import { timeSlots, recurrenceRules, fields } from '$lib/db/schema';
+import { timeSlots, fields } from '$lib/db/schema';
 import { and, count, desc, eq, gt, lt, inArray } from 'drizzle-orm';
+import {
+	toDate,
+	toRuleStr,
+	type RecurrenceMulti,
+	type TimeWindow
+} from '$lib/components/recurrence/recurrence-utils';
+import { RRuleTemporal } from 'rrule-temporal';
+import { Temporal } from '@js-temporal/polyfill';
+import type { TimeSlotCreate } from '$lib/db/types';
+import type { DrawParticipant, DrawSession, TimeSlot } from '$lib/schemas/draw-session-schemas';
+import {
+	timeSlotAssignmentSchema,
+	type TimeSlotAssignment
+} from '$lib/schemas/draw-session-schemas';
+import { dayNames, dayNamesShort } from '$lib/components/schedules/util';
+import { drawSessionServiceKey } from './draw-session-service';
+import type { TimeSlotInsert } from '$lib/db/zod';
 
 export interface TimeSlotFilter {
-	organizationId: string;
+	drawSessionId: string;
 	fieldId?: string;
 	startUtc?: Date; // inclusive
 	endUtc?: Date; // exclusive
@@ -30,12 +47,197 @@ export interface FieldSchedulesInput {
 
 export const timeSlotServiceKey = pbjKey<TimeSlotService>('timeSlotService');
 export class TimeSlotService extends BaseService {
-	constructor(db = pbj(drizzleKey)) {
+	constructor(
+		db = pbj(drizzleKey),
+		private drawSvc = pbj(drawSessionServiceKey)
+	) {
 		super(db);
+	}
+	async loadAllSlots(drawSessionId: string) {
+		// Load session with schedules and fields
+		const session = await this.drawSvc.loadSession(drawSessionId);
+		if (!session) return [];
+
+		// Load session state to get participants
+		const participants = session?.participants || [];
+
+		// Generate synthetic slots from session schedules
+		const syntheticSlots = new Map<string, any>();
+
+		// Process each schedule to generate synthetic slots
+		if (session.schedules?.length) {
+			for (const schedule of session.schedules) {
+				// Get the recurrence configuration
+				const recurrence = schedule.recurrence as RecurrenceMulti;
+
+				// Generate actual time slots for this recurrence pattern
+				for (const weekday of recurrence.weekdays ?? []) {
+					// Create synthetic slots for each field in this schedule
+					if (schedule.fields && schedule.fields.length > 0) {
+						for (const fieldInfo of schedule.fields) {
+							// fieldInfo has { id, fieldId, field: { id, name, ... } }
+							const fieldId = fieldInfo.fieldId;
+							const fieldData = (fieldInfo as any).field;
+							const fieldName = fieldData?.name || 'Unknown Field';
+
+							// Create a synthetic slot for each generated time slot
+							for (const timeSlot of recurrence.timeWindows) {
+								const startDate = toDate(recurrence.startDate)!;
+								const endDate =
+									toDate(
+										recurrence?.endCondition?.type === 'onDate'
+											? recurrence?.endCondition?.onDate
+											: session.endDate!
+									) ?? startDate;
+
+								// Extract weekday information
+								const weekdayName = dayNames[weekday as keyof typeof dayNames] || weekday;
+
+								// Extract time information
+								const startTime = timeSlot.start;
+								const endTime = timeSlot.end;
+
+								// Generate a simple pattern for this time slot
+								const startInstant = Temporal.Instant.from(startDate.toISOString());
+								const dtstart = startInstant.toZonedDateTimeISO('UTC');
+
+								const rule = new RRuleTemporal({
+									dtstart: dtstart,
+									freq:
+										recurrence.frequency === 'once'
+											? 'DAILY'
+											: (recurrence.frequency.toUpperCase() as any),
+									byDay: [weekday],
+									byHour: [Number(startTime.split(':')[0])],
+									byMinute: [Number(startTime.split(':')[1])],
+									count: 1
+								});
+
+								const pattern = rule.toString();
+								const key = `${fieldId}:${weekday}:${startTime}-${endTime}`; // Use simple key for dedup
+
+								// Only add if not already present
+								if (!syntheticSlots.has(key)) {
+									syntheticSlots.set(key, {
+										id: `new:${key}`, // Synthetic ID
+										organizationId: session.organizationId,
+										fieldId,
+										fieldName,
+										pattern,
+										startUtc: startDate.toISOString(),
+										endUtc: endDate?.toISOString(),
+										startTime,
+										endTime,
+										weekday: dayNamesShort.indexOf(weekdayName),
+										weekdayName,
+										status: 'available',
+										heldByUserId: null,
+										isSynthetic: true, // Mark as synthetic
+										isPattern: true,
+										slot: key
+									});
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// Merge synthetic and DB slots (DB slots take precedence)
+		const mergedSlots = new Map<string, any>(syntheticSlots);
+
+		// Override synthetic slots with DB slots where they exist
+		for (const dbSlot of session.timeSlots || []) {
+			// DB slot takes precedence
+			mergedSlots.set(dbSlot.slot, {
+				...dbSlot,
+				fieldName: dbSlot.field?.name || 'Unknown Field',
+				weekdayName: dayNamesShort[dbSlot.weekday],
+				isSynthetic: false, // This is a real DB slot
+				isPattern: true
+			});
+		}
+
+		// Convert to array and sort
+		const timeSlots = Array.from(mergedSlots.values());
+
+		// Sort by weekday, time, and field
+		timeSlots.sort((a, b) => {
+			const dayOrder = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+			const dayCompare = dayOrder.indexOf(a.weekday) - dayOrder.indexOf(b.weekday);
+			if (dayCompare !== 0) return dayCompare;
+			const timeCompare = a.startTime.localeCompare(b.startTime);
+			if (timeCompare !== 0) return timeCompare;
+			return a.fieldName.localeCompare(b.fieldName);
+		});
+
+		// Get fields from schedules
+		const fieldsMap = new Map();
+		if (session.schedules) {
+			session.schedules.forEach((schedule) => {
+				if (schedule.fields) {
+					schedule.fields.forEach((fieldInfo) => {
+						// fieldInfo has the field relation loaded
+						const field = (fieldInfo as any).field;
+						if (field) {
+							fieldsMap.set(fieldInfo.fieldId, field);
+						}
+					});
+				}
+			});
+		}
+
+		// Map participants to DrawParticipant type
+		const mappedParticipants = participants.map((p) => ({
+			id: p.id,
+			email: p.email || '',
+			displayName: p.email || 'Unknown',
+			avatarUrl: null
+		}));
+
+		// Map session to DrawSession type
+		const mappedSession = {
+			id: session.id,
+			organizationId: session.organizationId,
+			name: session.name,
+			startDate: session.startDate,
+			endDate: session.endDate,
+			rounds: session.rounds,
+			schedules:
+				session.schedules?.map((s) => ({
+					...s,
+					sessionId: s.drawSessionId,
+					recurrence: s.recurrence as RecurrenceMulti,
+					fields:
+						s.fields?.map((f: any) => ({
+							...f,
+							field: fieldsMap.get(f.fieldId) || {
+								id: f.fieldId,
+								name: 'Unknown Field',
+								description: null,
+								location: null,
+								capacity: null
+							}
+						})) || []
+				})) || []
+		};
+
+		const result = {
+			orgId: session.organizationId,
+			session: mappedSession,
+			participants: mappedParticipants,
+			timeSlots: timeSlots as TimeSlot[],
+			defaultDateRange: {
+				start: session.startDate.toISOString(),
+				end: session.endDate.toISOString()
+			}
+		} as const;
+		return result;
 	}
 
 	async fetchAvailable(params: TimeSlotFilter, options?: { includeFieldName?: boolean }) {
-		const whereParts: any[] = [eq(timeSlots.organizationId, params.organizationId)];
+		const whereParts: any[] = [eq(timeSlots.drawSessionId, params.drawSessionId)];
 		if (params.fieldId) whereParts.push(eq(timeSlots.fieldId, params.fieldId));
 		if (params.startUtc) whereParts.push(gt(timeSlots.endUtc, params.startUtc));
 		if (params.endUtc) whereParts.push(lt(timeSlots.startUtc, params.endUtc));
@@ -60,113 +262,27 @@ export class TimeSlotService extends BaseService {
 		return rows;
 	}
 
-	async blockSlot(organizationId: string, timeSlotId: string, reason: string) {
+	async blockSlot(drawSessionId: string, timeSlotId: string, reason: string) {
 		const [row] = await this.db
 			.update(timeSlots)
-			.set({ status: 'blocked' as any, blockedReason: reason, updatedAt: new Date() })
-			.where(and(eq(timeSlots.organizationId, organizationId), eq(timeSlots.id, timeSlotId)))
+			.set({ status: 'blocked', blockedReason: reason, updatedAt: new Date() })
+			.where(and(eq(timeSlots.drawSessionId, drawSessionId), eq(timeSlots.id, timeSlotId)))
 			.returning();
 		return row ?? null;
 	}
 
-	async unblockSlot(organizationId: string, timeSlotId: string) {
+	async unblockSlot(drawSessionId: string, timeSlotId: string) {
 		const [row] = await this.db
 			.update(timeSlots)
-			.set({ status: 'available' as any, blockedReason: null, updatedAt: new Date() })
-			.where(and(eq(timeSlots.organizationId, organizationId), eq(timeSlots.id, timeSlotId)))
+			.set({ status: 'available', blockedReason: null, updatedAt: new Date() })
+			.where(and(eq(timeSlots.drawSessionId, drawSessionId), eq(timeSlots.id, timeSlotId)))
 			.returning();
 		return row ?? null;
-	}
-
-	async generateFromRule(ruleId: string, slotDurationMinutes: number) {
-		const [rule] = await this.db
-			.select()
-			.from(recurrenceRules)
-			.where(eq(recurrenceRules.id, ruleId))
-			.limit(1);
-		if (!rule) throw new Error('Recurrence rule not found');
-
-		// Simple expansion: interpret byDay for weekly; others use windowStartUtc stepping by interval
-		const newSlots: { startUtc: Date; endUtc: Date }[] = [];
-		const interval = rule.interval ?? 1;
-
-		const addSlot = (start: Date) => {
-			const end = new Date(start.getTime() + slotDurationMinutes * 60_000);
-			if (end <= rule.windowEndUtc) newSlots.push({ startUtc: start, endUtc: end });
-		};
-
-		if (rule.frequency === 'daily') {
-			let cur = new Date(rule.windowStartUtc);
-			while (cur <= rule.windowEndUtc) {
-				addSlot(new Date(cur));
-				cur.setUTCDate(cur.getUTCDate() + interval);
-			}
-		} else if (rule.frequency === 'weekly') {
-			const days = (rule.byDay ?? '').split(',').filter(Boolean);
-			let weekStart = new Date(
-				Date.UTC(
-					rule.windowStartUtc.getUTCFullYear(),
-					rule.windowStartUtc.getUTCMonth(),
-					rule.windowStartUtc.getUTCDate()
-				)
-			);
-			while (weekStart <= rule.windowEndUtc) {
-				for (const d of days) {
-					const dayIdx = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'].indexOf(d);
-					if (dayIdx < 0) continue;
-					const candidate = new Date(weekStart);
-					const curDow = candidate.getUTCDay();
-					const delta = dayIdx - curDow;
-					candidate.setUTCDate(candidate.getUTCDate() + delta);
-					if (candidate >= rule.windowStartUtc && candidate <= rule.windowEndUtc)
-						addSlot(candidate);
-				}
-				weekStart.setUTCDate(weekStart.getUTCDate() + 7 * interval);
-			}
-		} else if (rule.frequency === 'monthly') {
-			let cur = new Date(rule.windowStartUtc);
-			while (cur <= rule.windowEndUtc) {
-				addSlot(new Date(cur));
-				cur.setUTCMonth(cur.getUTCMonth() + interval);
-			}
-		}
-
-		// Insert non-overlapping slots
-		let created = 0;
-		for (const s of newSlots) {
-			const overlaps = await this.db
-				.select({ c: count() })
-				.from(timeSlots)
-				.where(
-					and(
-						eq(timeSlots.fieldId, rule.fieldId),
-						// Overlap if start < existing.end AND end > existing.start
-						gt(timeSlots.endUtc, s.startUtc),
-						lt(timeSlots.startUtc, s.endUtc)
-					)
-				);
-			if ((overlaps?.[0]?.c ?? 0) > 0) continue;
-
-			await this.db
-				.insert(timeSlots)
-				.values({
-					organizationId: rule.organizationId,
-					fieldId: rule.fieldId,
-					startUtc: s.startUtc,
-					endUtc: s.endUtc,
-					status: 'available' as any,
-					version: 1
-				})
-				.onConflictDoNothing();
-			created++;
-		}
-
-		return { created };
 	}
 
 	// List time slots with optional filtering and field name inclusion
 	async listTimeSlots(
-		organizationId: string,
+		drawSessionId: string,
 		options?: {
 			startDate?: string;
 			endDate?: string;
@@ -174,7 +290,7 @@ export class TimeSlotService extends BaseService {
 			includeFieldName?: boolean;
 		}
 	) {
-		const whereParts: any[] = [eq(timeSlots.organizationId, organizationId)];
+		const whereParts: any[] = [eq(timeSlots.drawSessionId, drawSessionId)];
 
 		if (options?.startDate) {
 			whereParts.push(gt(timeSlots.startUtc, new Date(options.startDate)));
@@ -203,232 +319,50 @@ export class TimeSlotService extends BaseService {
 			.orderBy(timeSlots.startUtc);
 		return rows;
 	}
+	async findTimeSlotsByDrawSession(drawSessionId: string) {
+		const rows = await this.db.query.timeSlots.findMany({
+			with: {
+				field: true,
+				heldByUser: true
+			},
+			where: eq(timeSlots.drawSessionId, drawSessionId)
+		});
 
-	// Assign a time slot to a participant
-	async assignSlot(organizationId: string, slotId: string, participantId: string) {
-		try {
-			const [updated] = await this.db
+		return rows;
+	}
+
+	// Legacy method - unassign by slot ID (kept for backward compatibility)
+	async unassignSlot(slot: TimeSlot) {
+		return this.update({
+			...slot,
+			heldByUserId: undefined,
+			status: 'available'
+		});
+	}
+	// Legacy method - unassign by slot ID (kept for backward compatibility)
+	async assignSlot(slot: TimeSlotInsert) {
+		if (!slot.heldByUserId) throw new Error('heldByUserId is required');
+
+		return this.update({
+			...slot,
+			status: 'picked'
+		});
+	}
+
+	private async update({ id, ...slot }: TimeSlotInsert) {
+		if (id) {
+			return this.db
 				.update(timeSlots)
 				.set({
-					assignedParticipantId: participantId,
-					status: 'picked' as any,
+					...slot,
 					updatedAt: new Date()
 				})
-				.where(
-					and(
-						eq(timeSlots.id, slotId),
-						eq(timeSlots.organizationId, organizationId),
-						eq(timeSlots.status, 'available' as any)
-					)
-				)
-				.returning();
-
-			if (!updated) {
-				return { error: 'Slot not found or not available' };
-			}
-
-			return { slot: updated };
-		} catch (error) {
-			return { error: 'Failed to assign slot' };
+				.where(and(eq(timeSlots.id, id)));
 		}
-	}
-
-	// Unassign a time slot
-	async unassignSlot(organizationId: string, slotId: string) {
-		try {
-			const [updated] = await this.db
-				.update(timeSlots)
-				.set({
-					assignedParticipantId: null,
-					status: 'available' as any,
-					updatedAt: new Date()
-				})
-				.where(and(eq(timeSlots.id, slotId), eq(timeSlots.organizationId, organizationId)))
-				.returning();
-
-			if (!updated) {
-				return { error: 'Slot not found' };
-			}
-
-			return { slot: updated };
-		} catch (error) {
-			return { error: 'Failed to unassign slot' };
-		}
-	}
-
-	// Bulk validate against overlaps and create provided slots
-	async bulkCreateIfValid(
-		organizationId: string,
-		slots: { fieldId: string; startUtc: Date; endUtc: Date }[]
-	): Promise<{ created: number; error?: string }> {
-		// Validate overlaps per slot against DB
-		for (const s of slots) {
-			const overlaps = await this.db
-				.select({ c: count() })
-				.from(timeSlots)
-				.where(
-					and(
-						eq(timeSlots.organizationId, organizationId),
-						eq(timeSlots.fieldId, s.fieldId),
-						gt(timeSlots.endUtc, s.startUtc),
-						lt(timeSlots.startUtc, s.endUtc)
-					)
-				);
-			if ((overlaps?.[0]?.c ?? 0) > 0)
-				return { created: 0, error: 'One or more time slots overlap existing slots' };
-		}
-
-		let created = 0;
-		for (const s of slots) {
-			await this.db
-				.insert(timeSlots)
-				.values({
-					organizationId,
-					fieldId: s.fieldId,
-					startUtc: s.startUtc,
-					endUtc: s.endUtc,
-					status: 'available' as any,
-					version: 1
-				})
-				.onConflictDoNothing();
-			created++;
-		}
-		return { created };
-	}
-
-	// Expand and validate per-field schedules to concrete slots (UTC). Pure logic — exported for tests.
-	expandFieldSchedules(input: FieldSchedulesInput[]): {
-		prepared: { fieldId: string; startUtc: Date; endUtc: Date }[];
-		perFieldCount: Record<string, number>;
-		error?: string;
-	} {
-		const DAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
-		const timeRe = /^\d{2}:\d{2}$/;
-		const toMinutes = (hhmm: string) => {
-			const [h, m] = hhmm.split(':').map((n) => Number(n));
-			return h * 60 + m;
-		};
-		const prepared: { fieldId: string; startUtc: Date; endUtc: Date }[] = [];
-		const perFieldCount: Record<string, number> = {};
-		for (const fs of input) {
-			if (!fs.fieldId) return { prepared: [], perFieldCount: {}, error: 'Missing fieldId' };
-			// Validate windows no-overlap within a single schedule day-wise
-			for (const sch of fs.schedules || []) {
-				if (!sch.startDate || !sch.endDate)
-					return {
-						prepared: [],
-						perFieldCount: {},
-						error: 'Start and end dates are required (UTC)'
-					};
-				if (!Array.isArray(sch.windows) || sch.windows.length === 0)
-					return {
-						prepared: [],
-						perFieldCount: {},
-						error: 'Each Field schedule needs at least one window'
-					};
-				const mins = sch.windows.map((w) => {
-					const st = (w.startTime || '').trim();
-					const en = (w.endTime || '').trim();
-					if (!timeRe.test(st) || !timeRe.test(en)) return { stMin: NaN, enMin: NaN } as any;
-					const stMin = toMinutes(st);
-					const enMin = toMinutes(en);
-					return { stMin, enMin };
-				});
-				if (mins.some((m) => !(m.enMin > m.stMin)))
-					return {
-						prepared: [],
-						perFieldCount: {},
-						error: 'End time must be after start time (same UTC day)'
-					};
-				mins.sort((a, b) => a.stMin - b.stMin);
-				for (let i = 1; i < mins.length; i++)
-					if (mins[i - 1].enMin > mins[i].stMin)
-						return {
-							prepared: [],
-							perFieldCount: {},
-							error: 'Time windows overlap within a schedule for a Field'
-						};
-				// Expand across dates for selected days
-				const daySet = new Set((sch.days || []).filter(Boolean));
-				if (daySet.size === 0)
-					return { prepared: [], perFieldCount: {}, error: 'Select at least one day of week' };
-				const startDate = new Date(`${sch.startDate}T00:00:00Z`);
-				const endDate = new Date(`${sch.endDate}T00:00:00Z`);
-				if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || endDate < startDate)
-					return {
-						prepared: [],
-						perFieldCount: {},
-						error: 'End date must be on or after start date (UTC)'
-					};
-				for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
-					const code = DAY_CODES[d.getUTCDay()];
-					if (!daySet.has(code)) continue;
-					for (const w of mins) {
-						const startUtc = new Date(
-							Date.UTC(
-								d.getUTCFullYear(),
-								d.getUTCMonth(),
-								d.getUTCDate(),
-								Math.floor(w.stMin / 60),
-								w.stMin % 60
-							)
-						);
-						const endUtc = new Date(
-							Date.UTC(
-								d.getUTCFullYear(),
-								d.getUTCMonth(),
-								d.getUTCDate(),
-								Math.floor(w.enMin / 60),
-								w.enMin % 60
-							)
-						);
-						if (!(startUtc < endUtc))
-							return {
-								prepared: [],
-								perFieldCount: {},
-								error: 'Each slot must have Start < End (UTC same-day)'
-							};
-						prepared.push({ fieldId: fs.fieldId, startUtc, endUtc });
-					}
-				}
-			}
-			perFieldCount[fs.fieldId] = prepared.filter((p) => p.fieldId === fs.fieldId).length;
-		}
-		// Check overlaps among prepared slots per field (same request)
-		const byField: Record<string, { startUtc: Date; endUtc: Date }[]> = {};
-		for (const s of prepared) {
-			(byField[s.fieldId] ||= []).push({ startUtc: s.startUtc, endUtc: s.endUtc });
-		}
-		for (const fid of Object.keys(byField)) {
-			const arr = byField[fid].sort((a, b) => a.startUtc.getTime() - b.startUtc.getTime());
-			for (let i = 1; i < arr.length; i++) {
-				if (arr[i - 1].endUtc > arr[i].startUtc) {
-					return {
-						prepared: [],
-						perFieldCount: {},
-						error: 'Generated windows overlap within the same Field'
-					};
-				}
-			}
-		}
-		return { prepared, perFieldCount };
-	}
-
-	// Validate against DB (no overlaps) and create from per-field schedules. Caps total at 500.
-	async createFromFieldSchedules(
-		organizationId: string,
-		input: FieldSchedulesInput[],
-		cap: number = 500
-	): Promise<{ total: number; perField: { fieldId: string; count: number }[]; error?: string }> {
-		const { prepared, perFieldCount, error } = this.expandFieldSchedules(input);
-		if (error) return { total: 0, perField: [], error };
-		if (prepared.length > cap)
-			return { total: 0, perField: [], error: `Too many generated time slots (max ${cap})` };
-		const { created, error: dbError } = await this.bulkCreateIfValid(organizationId, prepared);
-		if (dbError) return { total: 0, perField: [], error: dbError };
-		if (created !== prepared.length)
-			return { total: created, perField: [], error: 'Failed to create all time slots' };
-		const perField = Object.entries(perFieldCount).map(([fieldId, count]) => ({ fieldId, count }));
-		return { total: created, perField };
+		const [ret] = await this.db
+			.insert(timeSlots)
+			.values({ ...slot, updatedAt: new Date() })
+			.returning();
+		return ret;
 	}
 }

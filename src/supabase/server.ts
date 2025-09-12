@@ -16,3 +16,26 @@ export function createSupabaseServer(event: RequestEvent) {
 		}
 	});
 }
+
+/**
+ * Safe method to get session and user that avoids the Supabase warning.
+ * This validates the session with the auth server.
+ */
+export async function safeGetSession(supabase: ReturnType<typeof createSupabaseServer>) {
+	// Get the user from the auth server (validated)
+	const {
+		data: { user },
+		error
+	} = await supabase.auth.getUser();
+
+	if (error || !user) {
+		return { session: null, user: null };
+	}
+
+	// Only get the session after we've validated the user
+	const {
+		data: { session }
+	} = await supabase.auth.getSession();
+
+	return { session, user };
+}

@@ -3,6 +3,7 @@ import { BaseService } from './base-service';
 import { drizzleKey } from '$lib/pbj';
 import { drawSessions, participants, picks, timeSlots } from '$lib/db/schema';
 import { and, count, eq, gt, isNull, lt, or, sql } from 'drizzle-orm';
+import { pickServiceParamsSchema, type PickServiceParams } from '$lib/schemas/draw-session-schemas';
 import { DrawSessionService, drawSessionServiceKey } from './draw-session-service';
 
 export const pickServiceKey = pbjKey<PickService>('pickService');
@@ -15,13 +16,10 @@ export class PickService extends BaseService {
 	}
 
 	// Attempts a pick with optimistic concurrency. Returns { success: true } or throws 409.
-	async performPick(params: {
-		organizationId: string;
-		sessionId: string;
-		userId: string;
-		timeSlotId: string;
-	}) {
-		const { organizationId, sessionId, userId, timeSlotId } = params;
+	async performPick(params: PickServiceParams) {
+		// Validate input parameters using zod schema
+		const validatedParams = pickServiceParamsSchema.parse(params);
+		const { organizationId, sessionId, userId, timeSlotId } = validatedParams;
 
 		// Validate session is active
 		const [session] = await this.db
@@ -52,6 +50,8 @@ export class PickService extends BaseService {
 			.update(timeSlots)
 			.set({
 				status: 'picked' as any,
+				heldByUserId: participant.id,
+				roundNumber,
 				version: sql`${timeSlots.version} + 1`,
 				updatedAt: now
 			})

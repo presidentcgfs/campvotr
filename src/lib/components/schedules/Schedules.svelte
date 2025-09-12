@@ -6,19 +6,16 @@
 	import { deriveScheduleTitle } from './util.js';
 
 	let {
-		schedules: _schedules = $bindable(),
+		schedules = $bindable(),
 		fields,
-		path = 'draw'
+		path = 'draw',
+		errors
 	} = $props<{
 		schedules: ScheduleUI[];
 		fields: Field[];
 		path: string;
+		errors?: Record<string, string[]>;
 	}>();
-
-	let schedules = $state(_schedules);
-	$effect(() => {
-		_schedules = schedules;
-	});
 
 	let fieldMap = $derived(new Map<string, Field>(fields.map((f: Field) => [f.id, f])));
 
@@ -28,7 +25,7 @@
 </script>
 
 <Accordion>
-	{#each schedules as schedule, si}
+	{#each schedules as schedule, si (schedule.id || `new-schedule-${si}`)}
 		<AccordionItem open={si === 0}>
 			{#snippet header()}
 				<span class="flex w-full items-center justify-between">
@@ -57,7 +54,12 @@
 					</div>
 				</span>
 			{/snippet}
-			<Schedule bind:schedule={schedules[si]} {fields} path={`${path}.schedules[${si}]`} />
+			<Schedule
+				bind:schedule={schedules[si]}
+				{fields}
+				path={`${path}[${si}]`}
+				errors={errors?.[si]}
+			/>
 		</AccordionItem>
 	{/each}
 </Accordion>

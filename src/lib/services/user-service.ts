@@ -79,10 +79,7 @@ export class UserService extends BaseService {
 			.from(organizationMemberships)
 			.leftJoin(authUsers, eq(organizationMemberships.userId, authUsers.id))
 			.where(
-				and(
-					eq(organizationMemberships.organizationId, organizationId),
-					eq(authUsers.email as any, email)
-				)
+				and(eq(organizationMemberships.organizationId, organizationId), eq(authUsers.email, email))
 			)
 			.limit(1);
 		const r: any = rows?.[0];
