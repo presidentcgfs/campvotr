@@ -5,7 +5,7 @@ import { drawSessionServiceKey } from '$lib/services/draw-session-service';
 import { userServiceKey } from '$lib/services/user-service';
 import { timeSlotServiceKey, type FieldSchedulesInput } from '$lib/services/timeslot-service';
 import { parseResponse } from '$lib/utils/parse';
-import { drawSessionSchema } from '$lib/schemas/draw-session-schemas';
+import { drawSessionSchema } from '$lib/db/zod';
 import type { ParticipantCreate } from '$lib/db/types';
 export const PUT: RequestHandler = (event) =>
 	withAuth(event, async (evt) => {

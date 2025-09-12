@@ -4,7 +4,7 @@
 	import { getRecurrenceMultiDescription } from '$lib/components/recurrence/recurrence-utils.js';
 
 	import type { Field, ScheduleUI } from './types';
-	import type { EndCondition } from '$lib/schemas/draw-session-schemas';
+	import type { EndCondition } from '$lib/db/zod';
 	let {
 		schedule = $bindable(),
 		path,

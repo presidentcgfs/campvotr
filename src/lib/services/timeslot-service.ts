@@ -12,11 +12,8 @@ import {
 import { RRuleTemporal } from 'rrule-temporal';
 import { Temporal } from '@js-temporal/polyfill';
 import type { TimeSlotCreate } from '$lib/db/types';
-import type { DrawParticipant, DrawSession, TimeSlot } from '$lib/schemas/draw-session-schemas';
-import {
-	timeSlotAssignmentSchema,
-	type TimeSlotAssignment
-} from '$lib/schemas/draw-session-schemas';
+import type { DrawParticipant, DrawSession, TimeSlot } from '$lib/db/zod';
+import { timeSlotAssignmentSchema, type TimeSlotAssignment } from '$lib/db/zod';
 import { dayNames, dayNamesShort } from '$lib/components/schedules/util';
 import { drawSessionServiceKey } from './draw-session-service';
 import type { TimeSlotInsert } from '$lib/db/zod';

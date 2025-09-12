@@ -3,7 +3,7 @@ import { BaseService } from './base-service';
 import { drizzleKey } from '$lib/pbj';
 import { drawSessions, participants, picks, timeSlots } from '$lib/db/schema';
 import { and, count, eq, gt, isNull, lt, or, sql } from 'drizzle-orm';
-import { pickServiceParamsSchema, type PickServiceParams } from '$lib/schemas/draw-session-schemas';
+import { pickServiceParamsSchema, type PickServiceParams } from '$lib/db/zod';
 import { DrawSessionService, drawSessionServiceKey } from './draw-session-service';
 
 export const pickServiceKey = pbjKey<PickService>('pickService');

@@ -11,7 +11,7 @@ import {
 	pickActionSchema,
 	blockActionSchema,
 	unblockActionSchema
-} from '$lib/schemas/draw-session-schemas';
+} from '$lib/db/zod';
 import { timeSlotInsertSchema } from '$lib/db/zod';
 
 export const load: PageServerLoad = withAuthRedirect(

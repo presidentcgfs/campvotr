@@ -18,7 +18,7 @@ import {
 	toDate
 } from '$lib/components/recurrence/recurrence-utils';
 import { randomUUID } from 'crypto';
-import type { DrawParticipant, DrawSession } from '$lib/schemas/draw-session-schemas';
+import type { DrawParticipant, DrawSession } from '$lib/db/zod';
 import {
 	createDrawSessionInputSchema,
 	updateDrawSessionInputSchema,
@@ -26,10 +26,11 @@ import {
 	type CreateDrawSessionInput,
 	type UpdateDrawSessionInput,
 	type ScheduleInput
-} from '$lib/schemas/draw-session-schemas';
+} from '$lib/db/zod';
 import { dayNames } from '$lib/components/schedules/util';
 import { Temporal } from '@js-temporal/polyfill';
 import { RRuleTemporal } from 'rrule-temporal';
+import { type DrawSession as DrawSessionValidated } from '$lib/services/validate';
 
 export type TurnStrategy = 'fixed' | 'randomized' | 'snake' | 'random' | 'round_robin';
 export type SessionStatus = 'scheduled' | 'active' | 'paused' | 'completed' | 'cancelled';

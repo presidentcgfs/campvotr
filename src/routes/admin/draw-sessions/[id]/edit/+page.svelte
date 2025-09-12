@@ -9,7 +9,7 @@
 	import { Datepicker } from 'flowbite-svelte';
 	import ParticipantManager from '$lib/components/ParticipantManager.svelte';
 	import { enhance } from '$app/forms';
-	import { type DrawSessionErrorSchema } from '$lib/schemas/draw-session-schemas';
+	import { type DrawSessionErrorSchema } from '$lib/db/zod';
 	import DumpButton from '$lib/components/DumpButton.svelte';
 
 	// Type for form response from the server

@@ -7,7 +7,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { extractResponse, parseResponse } from '$lib/utils/parse';
 import { validateDrawSession } from '$lib/services/validate';
 import { error } from '@sveltejs/kit';
-import { drawSessionSchema } from '$lib/schemas/draw-session-schemas';
+import { drawSessionSchema } from '$lib/db/zod';
 
 export const load = withAuthRedirect<PageServerLoad>(
 	async ({ params, locals: { resolve, organizationContext } }) => {

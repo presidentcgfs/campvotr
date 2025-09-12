@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DrawParticipant } from '$lib/schemas/draw-session-schemas';
+	import type { DrawParticipant } from '$lib/db/zod';
 	import {
 		getContrastTextColor,
 		stringToTailwindBg,

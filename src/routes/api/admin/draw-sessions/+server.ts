@@ -5,7 +5,7 @@ import { withAuth } from '$lib/services/middleware';
 import { organizationServiceKey } from '$lib/services/org';
 import { drawSessionAdminServiceKey } from '$lib/services/draw-session-admin-service';
 import { toRRules } from '$lib/components/recurrence/recurrence-utils';
-import { drawSessionSchema } from '$lib/schemas/draw-session-schemas';
+import { drawSessionSchema } from '$lib/db/zod';
 import { parseResponse } from '$lib/utils/parse';
 
 // Validation schemas
